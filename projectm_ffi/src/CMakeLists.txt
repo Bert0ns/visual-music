@@ -10,6 +10,12 @@ set(ENABLE_SDL_UI OFF CACHE BOOL "Disable SDL UI" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
 set(ENABLE_GLES OFF CACHE BOOL "Disable GLES" FORCE) # Keep standard OpenGL for now, we can tweak this later for Android
 
+# Workaround for projectM bug: it uses CMAKE_PROJECT_VERSION instead of PROJECT_VERSION
+set(CMAKE_PROJECT_VERSION_MAJOR "4")
+set(CMAKE_PROJECT_VERSION_MINOR "1")
+set(CMAKE_PROJECT_VERSION_PATCH "6")
+set(CMAKE_PROJECT_VERSION "4.1.6")
+
 FetchContent_Declare(
   projectM
   GIT_REPOSITORY https://github.com/projectM-visualizer/projectm.git

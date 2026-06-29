@@ -1,13 +1,6 @@
+#pragma once
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-
-#if _WIN32
-#include <windows.h>
-#else
-#include <pthread.h>
-#include <unistd.h>
-#endif
+#include <stdbool.h>
 
 #if _WIN32
 #define FFI_PLUGIN_EXPORT __declspec(dllexport)
@@ -15,16 +8,26 @@
 #define FFI_PLUGIN_EXPORT
 #endif
 
-// A very short-lived native function.
-//
-// For very short-lived functions, it is fine to call them on the main isolate.
-// They will block the Dart execution while running the native function, so
-// only do this for native functions which are guaranteed to be short-lived.
-FFI_PLUGIN_EXPORT int sum(int a, int b);
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-// A longer lived native function, which occupies the thread calling it.
-//
-// Do not call these kind of native functions in the main isolate. They will
-// block Dart execution. This will cause dropped frames in Flutter applications.
-// Instead, call these native functions on a separate isolate.
-FFI_PLUGIN_EXPORT int sum_long_running(int a, int b);
+// Initialize projectM and return a handle.
+// Must be called on a thread with an active OpenGL context.
+FFI_PLUGIN_EXPORT void* projectm_ffi_init();
+
+// Destroy the projectM instance
+FFI_PLUGIN_EXPORT void projectm_ffi_destroy(void* handle);
+
+// Set the render window size
+FFI_PLUGIN_EXPORT void projectm_ffi_set_window_size(void* handle, int width, int height);
+
+// Render a single frame into the current OpenGL context
+FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle);
+
+// Load a preset file (.milk)
+FFI_PLUGIN_EXPORT void projectm_ffi_load_preset(void* handle, const char* path, bool smooth_transition);
+
+#ifdef __cplusplus
+}
+#endif

@@ -16,6 +16,15 @@ The **projectM** C++ source code (specifically targeting release `v4.1.6`) will 
 
 - **Rationale:** This fully automates the build process. Flutter's native build system will automatically download the correct source code and compile it alongside the app for the target architecture (Windows, Linux, Android) without requiring manual cross-compilation or forcing developers to remember git submodule initialization commands. It keeps the git repository clean and lean.
 
+### 1.2 Graphics Pipeline Architecture (Double-Buffering)
+
+To satisfy the strict 60FPS performance requirement, the OpenGL rendering pipeline is strictly separated into two isolated Flutter plugins following the Single Responsibility Principle:
+1. **`projectm_ffi`**: A pure C++ FFI wrapper that embeds the `projectM` engine. It handles audio data, parses presets, and issues OpenGL draw calls. It knows absolutely nothing about Flutter or GTK.
+2. **`projectm_texture`**: A platform-specific MethodChannel plugin (e.g., using GTK/`FlTextureGL` on Linux). It creates an OpenGL context shared with Flutter, manages Frame Buffer Objects (FBOs), and exposes the resulting texture ID to Dart.
+
+**Thread-Safe Rendering (Avoiding Raster Stalls):**
+`projectM` draws into a "Back Buffer" FBO on a **Background Thread** (or via a Dart Isolate) using the shared OpenGL context. Once the frame is completely drawn and flushed to the GPU, the `projectm_texture` plugin safely swaps the Back and Front buffers and notifies Flutter's Texture Registry. This guarantees that Flutter's Raster Thread (which calls `FlTextureGL::populate`) never blocks waiting for `projectM` to finish rendering an expensive frame, ensuring perfectly smooth UI overlay animations.
+
 ## 2. Audio Capture Strategy
 
 Capturing audio reliably is the most critical feature. The app will support:

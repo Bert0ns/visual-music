@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:projectm_ffi/projectm_ffi.dart';
 import 'package:projectm_texture/projectm_texture.dart';
+import 'package:visual_music/features/presets/preset_service.dart';
 
 void main() {
   runApp(const VisualMusicApp());
@@ -41,26 +42,43 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   }
 
   Future<void> _initProjectM() async {
-    // 1. Initialize projectM FFI (creates the instance)
+    print("Dart: Initializing Preset Service...");
+    await PresetService.instance.init();
+    
+    print("Dart: Calling projectmInit()...");
     _pmHandle = projectmInit();
+    print("Dart: projectmInit() returned: ${_pmHandle?.address}");
 
-    // 2. Initialize Texture Plugin
-    // Pass the render callback and the projectM instance handle
+    print("Dart: Initializing Texture Plugin...");
     _textureId = await ProjectmTexture.initialize(
       800,
       600,
       projectmRenderFramePointer,
       _pmHandle!,
     );
+    print("Dart: Texture Plugin initialized with ID: $_textureId");
     
     projectmSetWindowSize(_pmHandle!, 800, 600);
+    
+    print("Dart: Starting audio capture...");
+    projectmStartAudioCapture(_pmHandle!);
+    print("Dart: Audio capture started!");
+
+    // Load a random preset
+    final randomPreset = await PresetService.instance.getRandomUnbannedPreset();
+    if (randomPreset != null) {
+      projectmLoadPreset(_pmHandle!, randomPreset.path, true);
+    }
 
     setState(() {});
 
-    // 3. Start render loop
-    _ticker = createTicker((elapsed) {
-      if (_textureId != null) {
-        ProjectmTexture.requestFrame(_textureId!);
+    // 4. Start render loop
+    bool _isRequesting = false;
+    _ticker = createTicker((elapsed) async {
+      if (_textureId != null && !_isRequesting) {
+        _isRequesting = true;
+        await ProjectmTexture.requestFrame(_textureId!);
+        _isRequesting = false;
       }
     });
     _ticker.start();
@@ -69,6 +87,7 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   @override
   void dispose() {
     _ticker.dispose();
+    projectmStopAudioCapture();
     if (_pmHandle != null) {
       projectmDestroy(_pmHandle!);
     }

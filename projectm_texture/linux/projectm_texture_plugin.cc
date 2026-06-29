@@ -8,7 +8,7 @@
 #define PROJECTM_TEXTURE_GL(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), projectm_texture_gl_get_type(), ProjectmTextureGL))
 
-typedef void (*RenderCallback)(void*);
+typedef void (*RenderCallback)(void*, uint32_t, uint32_t);
 
 typedef struct _ProjectmTextureGL ProjectmTextureGL;
 typedef struct {
@@ -58,14 +58,30 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
   }
 
   // Save state
-  GLint old_fbo;
+  GLint old_fbo, old_program, old_vao, old_vbo, old_tex, old_active_tex;
+  GLint old_viewport[4], old_scissor[4];
+  GLboolean old_blend, old_depth, old_cull, old_scissor_test;
+  GLboolean old_color_mask[4], old_depth_mask;
+  glGetIntegerv(GL_ACTIVE_TEXTURE, &old_active_tex);
   glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_fbo);
+  glGetIntegerv(GL_CURRENT_PROGRAM, &old_program);
+  glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &old_vao);
+  glGetIntegerv(GL_ARRAY_BUFFER_BINDING, &old_vbo);
+  glGetIntegerv(GL_TEXTURE_BINDING_2D, &old_tex);
+  glGetIntegerv(GL_VIEWPORT, old_viewport);
+  glGetIntegerv(GL_SCISSOR_BOX, old_scissor);
+  glGetBooleanv(GL_COLOR_WRITEMASK, old_color_mask);
+  glGetBooleanv(GL_DEPTH_WRITEMASK, &old_depth_mask);
+  old_blend = glIsEnabled(GL_BLEND);
+  old_depth = glIsEnabled(GL_DEPTH_TEST);
+  old_cull = glIsEnabled(GL_CULL_FACE);
+  old_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
   
   glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
   glViewport(0, 0, self->width, self->height);
 
   if (self->render_cb) {
-    self->render_cb(self->render_ctx);
+    self->render_cb(self->render_ctx, self->width, self->height);
   } else {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -73,6 +89,20 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
 
   // Restore state
   glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
+  glUseProgram(old_program);
+  glBindVertexArray(old_vao);
+  glBindBuffer(GL_ARRAY_BUFFER, old_vbo);
+  glActiveTexture(old_active_tex);
+  glBindTexture(GL_TEXTURE_2D, old_tex);
+  glViewport(old_viewport[0], old_viewport[1], old_viewport[2], old_viewport[3]);
+  glScissor(old_scissor[0], old_scissor[1], old_scissor[2], old_scissor[3]);
+  glColorMask(old_color_mask[0], old_color_mask[1], old_color_mask[2], old_color_mask[3]);
+  glDepthMask(old_depth_mask);
+  
+  if (old_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
+  if (old_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);
+  if (old_cull) glEnable(GL_CULL_FACE); else glDisable(GL_CULL_FACE);
+  if (old_scissor_test) glEnable(GL_SCISSOR_TEST); else glDisable(GL_SCISSOR_TEST);
 
   *target = GL_TEXTURE_2D;
   *name = self->texture_id;

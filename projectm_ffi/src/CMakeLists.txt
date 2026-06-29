@@ -25,15 +25,21 @@ FetchContent_MakeAvailable(projectM)
 
 add_library(projectm_ffi SHARED
   "projectm_ffi.cpp"
+  "audio_capture.cpp"
 )
 
 set_target_properties(projectm_ffi PROPERTIES
   PUBLIC_HEADER projectm_ffi.h
   OUTPUT_NAME "projectm_ffi"
+  DEBUG_POSTFIX ""
 )
 
 # Link projectM to our FFI library
 target_link_libraries(projectm_ffi PRIVATE projectM)
+
+if(UNIX AND NOT APPLE AND NOT ANDROID)
+  target_link_libraries(projectm_ffi PRIVATE dl pthread m)
+endif()
 target_compile_definitions(projectm_ffi PUBLIC DART_SHARED_LIB)
 
 if (ANDROID)

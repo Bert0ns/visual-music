@@ -53,11 +53,11 @@ Building a high-performance cross-platform music visualizer using Flutter and th
 **Description:** Implement microphone audio capture entirely within the C++ layer (e.g., using `miniaudio`) and pipe the PCM data directly to ProjectM.
 **Acceptance criteria:**
 
-- [ ] App requests microphone permissions from Dart.
-- [ ] Dart FFI triggers `startAudioCapture()` in C++.
-- [ ] C++ captures microphone data and feeds it directly into ProjectM without Dart intervention.
+- [x] App requests microphone permissions from Dart.
+- [x] Dart FFI triggers `startAudioCapture()` in C++.
+- [x] C++ captures microphone data and feeds it directly into ProjectM without Dart intervention.
       **Verification:**
-- [ ] Manual check: Visuals react to microphone input when speaking into the computer.
+- [x] Manual check: Visuals react to microphone input when speaking into the computer.
       **Dependencies:** Task 2
       **Files likely touched:** `lib/features/settings/audio_capture_service.dart`, `lib/core/ffi/projectm_bindings.dart`
       **Estimated scope:** Medium
@@ -67,20 +67,20 @@ Building a high-performance cross-platform music visualizer using Flutter and th
 **Description:** Bundle the `.milk` presets into a single `presets.zip` asset. Extract it to the local app directory on first launch and build an SQLite database to index them.
 **Acceptance criteria:**
 
-- [ ] `presets.zip` is bundled in `pubspec.yaml`.
-- [ ] Isolate extracts presets to disk and populates the SQLite database.
-- [ ] Database supports fast querying (e.g., random unbanned preset).
-- [ ] FFI tells ProjectM to load a specific preset file path.
+- [x] `presets.zip` is bundled in `pubspec.yaml`.
+- [x] Isolate extracts presets to disk and populates the SQLite database.
+- [x] Database supports fast querying (e.g., random unbanned preset).
+- [x] FFI tells ProjectM to load a specific preset file path.
       **Verification:**
-- [ ] Manual check: The visualizer displays an actual MilkDrop preset instead of default shapes.
+- [x] Manual check: The visualizer displays an actual MilkDrop preset instead of default shapes.
       **Dependencies:** Task 2
       **Files likely touched:** `pubspec.yaml`, `lib/features/presets/preset_service.dart`
       **Estimated scope:** Medium
 
 ### Checkpoint: Core Features
 
-- [ ] Microphone input correctly drives visuals.
-- [ ] `.milk` presets load successfully.
+- [x] Microphone input correctly drives visuals.
+- [x] `.milk` presets load successfully.
 
 ### Phase 3: UI & Auto-DJ
 

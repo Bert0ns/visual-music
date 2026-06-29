@@ -10,6 +10,12 @@ A high-performance, cross-platform music visualization application built with Fl
 - **Rendering Engine:** projectM (C++ / OpenGL), bound to Flutter via FFI (Foreign Function Interface) and rendered using Flutter's `Texture` widget.
 - **Target Platforms:** Windows, Linux, Android, Android TV. (macOS/iOS deferred for future phases).
 
+### 1.1 C++ Dependency Management (ProjectM)
+
+The **projectM** C++ source code (specifically targeting release `v4.1.6`) will be managed via **CMake `FetchContent`** rather than Git Submodules or precompiled binaries.
+
+- **Rationale:** This fully automates the build process. Flutter's native build system will automatically download the correct source code and compile it alongside the app for the target architecture (Windows, Linux, Android) without requiring manual cross-compilation or forcing developers to remember git submodule initialization commands. It keeps the git repository clean and lean.
+
 ## 2. Audio Capture Strategy
 
 Capturing audio reliably is the most critical feature. The app will support:
@@ -50,7 +56,7 @@ When you are ready to begin writing code, the immediate technical milestones wil
 Since development will occur in a Windows Subsystem for Linux (WSL) environment while utilizing Android Studio on the Windows host, the following setup is required:
 
 - **Code & Editor:** Project files must reside inside the WSL filesystem (e.g., `~/visual-music`). VS Code runs on Windows using the **"WSL" extension** to edit these files seamlessly.
-- **Flutter SDK:** The Linux version of the Flutter SDK must be installed *inside* WSL to ensure Linux-compatible compilation tools are available.
+- **Flutter SDK:** The Linux version of the Flutter SDK must be installed _inside_ WSL to ensure Linux-compatible compilation tools are available.
 - **Android Compilation:** The Android Command Line Tools (Linux version) must be installed inside WSL. Full Android Studio is not needed in WSL; only the CLI tools are required for `flutter build apk`.
 - **ADB Bridge (The Emulator Connection):** Android Emulators will run on the Windows host via Android Studio. To allow WSL's Flutter installation to see the Windows emulator, the ADB server inside WSL must be configured to connect to the ADB host on Windows over TCP (e.g., setting the WSL ADB host to connect to the Windows IP/host).
 - **Desktop Targets:** Running `flutter run -d linux` inside WSL will compile the Linux native desktop app (which can be displayed via WSLg). Compiling the Windows `.exe` native app will require checking out the repository on the Windows host and compiling it natively outside of WSL.

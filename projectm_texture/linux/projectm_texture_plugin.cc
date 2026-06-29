@@ -1,12 +1,110 @@
 #include "include/projectm_texture/projectm_texture_plugin.h"
-
 #include <flutter_linux/flutter_linux.h>
 #include <gtk/gtk.h>
-#include <sys/utsname.h>
+#include <epoxy/gl.h>
+#include <unordered_map>
+#include <iostream>
 
-#include <cstring>
+#define PROJECTM_TEXTURE_GL(obj) \
+  (G_TYPE_CHECK_INSTANCE_CAST((obj), projectm_texture_gl_get_type(), ProjectmTextureGL))
 
-#include "projectm_texture_plugin_private.h"
+typedef void (*RenderCallback)(void*);
+
+typedef struct _ProjectmTextureGL ProjectmTextureGL;
+typedef struct {
+  FlTextureGLClass parent_class;
+} ProjectmTextureGLClass;
+
+struct _ProjectmTextureGL {
+  FlTextureGL parent_instance;
+  GLuint fbo_id;
+  GLuint texture_id;
+  uint32_t width;
+  uint32_t height;
+  RenderCallback render_cb;
+  void* render_ctx;
+};
+
+G_DEFINE_TYPE(ProjectmTextureGL, projectm_texture_gl, fl_texture_gl_get_type())
+
+static void projectm_texture_gl_dispose(GObject* object) {
+  ProjectmTextureGL* self = PROJECTM_TEXTURE_GL(object);
+  if (self->texture_id != 0) {
+    glDeleteTextures(1, &self->texture_id);
+    self->texture_id = 0;
+  }
+  if (self->fbo_id != 0) {
+    glDeleteFramebuffers(1, &self->fbo_id);
+    self->fbo_id = 0;
+  }
+  G_OBJECT_CLASS(projectm_texture_gl_parent_class)->dispose(object);
+}
+
+static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* target,
+                                             uint32_t* name, uint32_t* width,
+                                             uint32_t* height, GError** error) {
+  ProjectmTextureGL* self = PROJECTM_TEXTURE_GL(texture);
+
+  if (self->texture_id == 0) {
+    glGenTextures(1, &self->texture_id);
+    glBindTexture(GL_TEXTURE_2D, self->texture_id);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self->width, self->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    
+    glGenFramebuffers(1, &self->fbo_id);
+    glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self->texture_id, 0);
+  }
+
+  // Save state
+  GLint old_fbo;
+  glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_fbo);
+  
+  glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
+  glViewport(0, 0, self->width, self->height);
+
+  if (self->render_cb) {
+    self->render_cb(self->render_ctx);
+  } else {
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+  }
+
+  // Restore state
+  glBindFramebuffer(GL_FRAMEBUFFER, old_fbo);
+
+  *target = GL_TEXTURE_2D;
+  *name = self->texture_id;
+  *width = self->width;
+  *height = self->height;
+
+  return TRUE;
+}
+
+static void projectm_texture_gl_class_init(ProjectmTextureGLClass* klass) {
+  GObjectClass* gobject_class = G_OBJECT_CLASS(klass);
+  gobject_class->dispose = projectm_texture_gl_dispose;
+  FL_TEXTURE_GL_CLASS(klass)->populate = projectm_texture_gl_populate;
+}
+
+static void projectm_texture_gl_init(ProjectmTextureGL* self) {
+  self->fbo_id = 0;
+  self->texture_id = 0;
+  self->width = 800;
+  self->height = 600;
+  self->render_cb = nullptr;
+  self->render_ctx = nullptr;
+}
+
+static ProjectmTextureGL* projectm_texture_gl_new(uint32_t width, uint32_t height) {
+  ProjectmTextureGL* self = PROJECTM_TEXTURE_GL(g_object_new(projectm_texture_gl_get_type(), nullptr));
+  self->width = width;
+  self->height = height;
+  return self;
+}
+
+// ----- Plugin Boilerplate -----
 
 #define PROJECTM_TEXTURE_PLUGIN(obj) \
   (G_TYPE_CHECK_INSTANCE_CAST((obj), projectm_texture_plugin_get_type(), \
@@ -14,63 +112,69 @@
 
 struct _ProjectmTexturePlugin {
   GObject parent_instance;
+  FlTextureRegistrar* texture_registrar;
 };
 
 G_DEFINE_TYPE(ProjectmTexturePlugin, projectm_texture_plugin, g_object_get_type())
 
-// Called when a method call is received from Flutter.
-static void projectm_texture_plugin_handle_method_call(
-    ProjectmTexturePlugin* self,
-    FlMethodCall* method_call) {
-  g_autoptr(FlMethodResponse) response = nullptr;
+static std::unordered_map<int64_t, ProjectmTextureGL*> global_textures;
 
+static void projectm_texture_plugin_handle_method_call(ProjectmTexturePlugin* self, FlMethodCall* method_call) {
   const gchar* method = fl_method_call_get_name(method_call);
 
-  if (strcmp(method, "getPlatformVersion") == 0) {
-    response = get_platform_version();
+  if (strcmp(method, "initialize") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    uint32_t width = fl_value_get_int(fl_value_lookup_string(args, "width"));
+    uint32_t height = fl_value_get_int(fl_value_lookup_string(args, "height"));
+
+    ProjectmTextureGL* texture = projectm_texture_gl_new(width, height);
+    fl_texture_registrar_register_texture(self->texture_registrar, FL_TEXTURE(texture));
+    
+    int64_t texture_id = reinterpret_cast<int64_t>(FL_TEXTURE(texture));
+    global_textures[texture_id] = texture;
+
+    g_autoptr(FlValue) result = fl_value_new_int(texture_id);
+    fl_method_call_respond(method_call, FL_METHOD_RESPONSE(fl_method_success_response_new(result)), nullptr);
+  } else if (strcmp(method, "requestFrame") == 0) {
+    FlValue* args = fl_method_call_get_args(method_call);
+    int64_t texture_id = fl_value_get_int(fl_value_lookup_string(args, "textureId"));
+    
+    if (global_textures.count(texture_id)) {
+      fl_texture_registrar_mark_texture_frame_available(self->texture_registrar, FL_TEXTURE(global_textures[texture_id]));
+      fl_method_call_respond(method_call, FL_METHOD_RESPONSE(fl_method_success_response_new(nullptr)), nullptr);
+    } else {
+      fl_method_call_respond(method_call, FL_METHOD_RESPONSE(fl_method_error_response_new("invalid_id", "Texture not found", nullptr)), nullptr);
+    }
   } else {
-    response = FL_METHOD_RESPONSE(fl_method_not_implemented_response_new());
+    fl_method_call_respond(method_call, FL_METHOD_RESPONSE(fl_method_not_implemented_response_new()), nullptr);
   }
-
-  fl_method_call_respond(method_call, response, nullptr);
 }
 
-FlMethodResponse* get_platform_version() {
-  struct utsname uname_data = {};
-  uname(&uname_data);
-  g_autofree gchar *version = g_strdup_printf("Linux %s", uname_data.version);
-  g_autoptr(FlValue) result = fl_value_new_string(version);
-  return FL_METHOD_RESPONSE(fl_method_success_response_new(result));
-}
-
-static void projectm_texture_plugin_dispose(GObject* object) {
-  G_OBJECT_CLASS(projectm_texture_plugin_parent_class)->dispose(object);
-}
-
-static void projectm_texture_plugin_class_init(ProjectmTexturePluginClass* klass) {
-  G_OBJECT_CLASS(klass)->dispose = projectm_texture_plugin_dispose;
-}
-
+static void projectm_texture_plugin_class_init(ProjectmTexturePluginClass* klass) {}
 static void projectm_texture_plugin_init(ProjectmTexturePlugin* self) {}
 
-static void method_call_cb(FlMethodChannel* channel, FlMethodCall* method_call,
-                           gpointer user_data) {
+static void method_call_cb(FlMethodChannel* channel, FlMethodCall* method_call, gpointer user_data) {
   ProjectmTexturePlugin* plugin = PROJECTM_TEXTURE_PLUGIN(user_data);
   projectm_texture_plugin_handle_method_call(plugin, method_call);
 }
 
 void projectm_texture_plugin_register_with_registrar(FlPluginRegistrar* registrar) {
-  ProjectmTexturePlugin* plugin = PROJECTM_TEXTURE_PLUGIN(
-      g_object_new(projectm_texture_plugin_get_type(), nullptr));
+  ProjectmTexturePlugin* plugin = PROJECTM_TEXTURE_PLUGIN(g_object_new(projectm_texture_plugin_get_type(), nullptr));
+  plugin->texture_registrar = fl_plugin_registrar_get_texture_registrar(registrar);
 
   g_autoptr(FlStandardMethodCodec) codec = fl_standard_method_codec_new();
   g_autoptr(FlMethodChannel) channel =
       fl_method_channel_new(fl_plugin_registrar_get_messenger(registrar),
-                            "projectm_texture",
-                            FL_METHOD_CODEC(codec));
-  fl_method_channel_set_method_call_handler(channel, method_call_cb,
-                                            g_object_ref(plugin),
-                                            g_object_unref);
-
+                            "projectm_texture", FL_METHOD_CODEC(codec));
+  fl_method_channel_set_method_call_handler(channel, method_call_cb, g_object_ref(plugin), g_object_unref);
   g_object_unref(plugin);
+}
+
+// ----- FFI EXPORTS -----
+extern "C" __attribute__((visibility("default"))) 
+void projectm_texture_set_callback(int64_t texture_id, RenderCallback cb, void* ctx) {
+  if (global_textures.count(texture_id)) {
+    global_textures[texture_id]->render_cb = cb;
+    global_textures[texture_id]->render_ctx = ctx;
+  }
 }

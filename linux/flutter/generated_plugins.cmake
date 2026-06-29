@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  projectm_texture
 )
 
 list(APPEND FLUTTER_FFI_PLUGIN_LIST

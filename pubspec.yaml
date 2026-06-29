@@ -36,6 +36,8 @@ dependencies:
   cupertino_icons: ^1.0.8
   projectm_ffi:
     path: projectm_ffi
+  projectm_texture:
+    path: projectm_texture
 
 dev_dependencies:
   flutter_test:

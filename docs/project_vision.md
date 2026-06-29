@@ -19,6 +19,7 @@ The **projectM** C++ source code (specifically targeting release `v4.1.6`) will 
 ### 1.2 Graphics Pipeline Architecture (Double-Buffering)
 
 To satisfy the strict 60FPS performance requirement, the OpenGL rendering pipeline is strictly separated into two isolated Flutter plugins following the Single Responsibility Principle:
+
 1. **`projectm_ffi`**: A pure C++ FFI wrapper that embeds the `projectM` engine. It handles audio data, parses presets, and issues OpenGL draw calls. It knows absolutely nothing about Flutter or GTK.
 2. **`projectm_texture`**: A platform-specific MethodChannel plugin (e.g., using GTK/`FlTextureGL` on Linux). It creates an OpenGL context shared with Flutter, manages Frame Buffer Objects (FBOs), and exposes the resulting texture ID to Dart.
 

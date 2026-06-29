@@ -150,7 +150,7 @@ packages:
   projectm_ffi:
     dependency: "direct main"
     description:
-      path: projectm_ffi
+      path: ".."
       relative: true
     source: path
     version: "0.0.1"

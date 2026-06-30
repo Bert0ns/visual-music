@@ -2,6 +2,11 @@
 
 A new Flutter project.
 
+## Documentation
+
+- [Features & Vision](docs/features_and_vision.md): High-level overview of the product, UI/UX, and features.
+- [Technical Architecture](docs/technical_architecture.md): In-depth details on C++ FFI, OpenGL rendering, and system audio capture.
+
 ## Getting Started
 
 This project is a starting point for a Flutter application.

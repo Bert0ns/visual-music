@@ -8,10 +8,10 @@ include(FetchContent)
 
 set(ENABLE_SDL_UI OFF CACHE BOOL "Disable SDL UI" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
-if(ANDROID)
-  set(ENABLE_GLES ON CACHE BOOL "Use GLES for Android EGL contexts" FORCE)
+if(WIN32)
+  set(ENABLE_GLES OFF CACHE BOOL "Use Desktop GL on Windows" FORCE)
 else()
-  set(ENABLE_GLES OFF CACHE BOOL "Use Desktop GL on Desktop (Windows/Linux/Mac)" FORCE)
+  set(ENABLE_GLES ON CACHE BOOL "Use GLES for Flutter EGL contexts" FORCE)
 endif()
 
 # Workaround for projectM bug: it uses CMAKE_PROJECT_VERSION instead of PROJECT_VERSION
@@ -42,6 +42,16 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(projectM)
 
+# Patch ProjectM hardcoded FBO to use g_pm_fbo so we can render to Flutter Texture FBOs
+execute_process(
+    COMMAND sed -i "1i extern \\\"C\\\" { extern int g_pm_fbo; }" "${projectm_SOURCE_DIR}/src/libprojectM/Renderer/Framebuffer.cpp"
+    COMMAND sed -i "1i extern \\\"C\\\" { extern int g_pm_fbo; }" "${projectm_SOURCE_DIR}/src/libprojectM/ProjectM.cpp"
+    COMMAND sed -i "s/glBindFramebuffer(GL_FRAMEBUFFER, 0)/glBindFramebuffer(GL_FRAMEBUFFER, g_pm_fbo)/g" "${projectm_SOURCE_DIR}/src/libprojectM/Renderer/Framebuffer.cpp"
+    COMMAND sed -i "s/glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)/glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_pm_fbo)/g" "${projectm_SOURCE_DIR}/src/libprojectM/Renderer/Framebuffer.cpp"
+    COMMAND sed -i "s/glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0)/glBindFramebuffer(GL_DRAW_FRAMEBUFFER, g_pm_fbo)/g" "${projectm_SOURCE_DIR}/src/libprojectM/ProjectM.cpp"
+    COMMAND sed -i "s/glBindFramebuffer(GL_FRAMEBUFFER, 0)/glBindFramebuffer(GL_FRAMEBUFFER, g_pm_fbo)/g" "${projectm_SOURCE_DIR}/src/libprojectM/ProjectM.cpp"
+)
+
 add_library(projectm_ffi SHARED
   "projectm_ffi.cpp"
   "audio_capture.cpp"
@@ -57,7 +67,7 @@ set_target_properties(projectm_ffi PROPERTIES
 target_link_libraries(projectm_ffi PRIVATE projectM)
 
 if(UNIX AND NOT APPLE AND NOT ANDROID)
-  target_link_libraries(projectm_ffi PRIVATE dl pthread m)
+  target_link_libraries(projectm_ffi PRIVATE dl pthread m GLESv2)
 endif()
 target_compile_definitions(projectm_ffi PUBLIC DART_SHARED_LIB)
 

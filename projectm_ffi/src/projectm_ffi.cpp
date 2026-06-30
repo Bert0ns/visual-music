@@ -9,6 +9,10 @@ ProjectmFfiState* projectm_ffi_state_from_handle(void* handle) {
     return static_cast<ProjectmFfiState*>(handle);
 }
 
+#if defined(__linux__) && !defined(__ANDROID__)
+#include <GLES3/gl3.h>
+#endif
+
 #if defined(__ANDROID__)
 #include <EGL/egl.h>
 #include <GLES2/gl2.h>
@@ -79,6 +83,10 @@ FFI_PLUGIN_EXPORT void* projectm_ffi_init() {
     return static_cast<void*>(new ProjectmFfiState());
 }
 
+extern "C" {
+    int g_pm_fbo = 0;
+}
+
 FFI_PLUGIN_EXPORT void projectm_ffi_destroy(void* handle) {
     ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
     if (!state) {
@@ -114,8 +122,12 @@ FFI_PLUGIN_EXPORT void projectm_ffi_set_window_size(void* handle, int width, int
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, uint32_t height) {
-    ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
-    if (!state || width == 0 || height == 0) {
+    auto state = projectm_ffi_state_from_handle(handle);
+    if (!state) return;
+
+    // Capture the current FBO (bound by Flutter/TexturePlugin) so ProjectM can restore it!
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING, &g_pm_fbo);
+    if (width == 0 || height == 0) {
         return;
     }
 

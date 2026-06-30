@@ -47,6 +47,9 @@ void playback_data_callback(ma_device* pDevice, void* pOutput, const void* pInpu
 
 void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
+    // Ignore microphone/capture if the internal player is active!
+    if (g_playback_running.load() && g_is_playing.load()) return;
+
     // pInput contains the captured audio
     if (pInput == nullptr || g_ffi_handle == nullptr) return;
 
@@ -128,6 +131,11 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
                 double beatPhase = 0.0;
                 
                 while (g_audio_running.load()) {
+                    if (g_playback_running.load() && g_is_playing.load()) {
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        continue;
+                    }
+                    
                     for (int i = 0; i < framesPerBuffer; i++) {
                         beatPhase += 2.0 * 3.14159265358979323846 * 2.0 / sampleRate;
                         if (beatPhase > 2.0 * 3.14159265358979323846) beatPhase -= 2.0 * 3.14159265358979323846;
@@ -220,11 +228,19 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_play_file(void* handle, const char* filepath
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_pause_audio() {
+    std::lock_guard<std::mutex> lock(g_playback_mutex);
     g_is_playing.store(false);
+    if (g_playback_running.load()) {
+        ma_device_stop(&g_playback_device);
+    }
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_resume_audio() {
+    std::lock_guard<std::mutex> lock(g_playback_mutex);
     g_is_playing.store(true);
+    if (g_playback_running.load()) {
+        ma_device_start(&g_playback_device);
+    }
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio() {

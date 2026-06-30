@@ -100,8 +100,8 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
     glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
     glViewport(0, 0, self->width, self->height);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-    // Clear to black
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); 
+    // Clear to RED
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f); 
     glClear(GL_COLOR_BUFFER_BIT);
 
     // 2. Call ProjectM
@@ -115,7 +115,7 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
     glDisable(GL_SCISSOR_TEST);
     
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f); // RED background!
     glClear(GL_COLOR_BUFFER_BIT);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     

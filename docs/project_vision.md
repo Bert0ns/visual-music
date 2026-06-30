@@ -2,19 +2,19 @@
 
 ## Overview
 
-A high-performance, cross-platform music visualization application built with Flutter and the **projectM** (MilkDrop) C++ rendering engine. The app targets Windows, Linux, Android, and Android TV, delivering mind-bending visual responses to whatever music the user is listening to.
+A high-performance, cross-platform music visualization application built with Flutter and the **projectM** (MilkDrop) C++ rendering engine. The app targets Linux, Android, and Android TV, delivering mind-bending visual responses to whatever music the user is listening to.
 
 ## 1. Core Technology Stack
 
 - **Frontend Framework:** Flutter (Dart) for a unified, smooth UI across all platforms.
 - **Rendering Engine:** projectM (C++ / OpenGL), bound to Flutter via FFI (Foreign Function Interface) and rendered using Flutter's `Texture` widget.
-- **Target Platforms:** Windows, Linux, Android, Android TV. (macOS/iOS deferred for future phases).
+- **Target Platforms:** Linux, Android, Android TV. (Windows, macOS/iOS deferred for future phases).
 
 ### 1.1 C++ Dependency Management (ProjectM)
 
 The **projectM** C++ source code (specifically targeting release `v4.1.6`) will be managed via **CMake `FetchContent`** rather than Git Submodules or precompiled binaries.
 
-- **Rationale:** This fully automates the build process. Flutter's native build system will automatically download the correct source code and compile it alongside the app for the target architecture (Windows, Linux, Android) without requiring manual cross-compilation or forcing developers to remember git submodule initialization commands. It keeps the git repository clean and lean.
+- **Rationale:** This fully automates the build process. Flutter's native build system will automatically download the correct source code and compile it alongside the app for the target architecture (Linux, Android) without requiring manual cross-compilation or forcing developers to remember git submodule initialization commands. It keeps the git repository clean and lean.
 
 ### 1.2 Graphics Pipeline Architecture (Double-Buffering)
 
@@ -32,7 +32,7 @@ Capturing audio reliably is the most critical feature. The app will support:
 
 - **System Audio Capture:**
   - **Android:** Utilizing the Android 10+ `AudioPlaybackCapture` API.
-  - **Windows:** Using WASAPI loopback.
+
   - **Linux:** Using PulseAudio / PipeWire monitor streams.
 - **Fallback / Alternative Sources:**
   - **Microphone:** Seamless fallback for Android if the foreground media app (like Spotify) blocks capture via DRM/privacy flags.
@@ -57,7 +57,7 @@ Capturing audio reliably is the most critical feature. The app will support:
 When you are ready to begin writing code, the immediate technical milestones will be:
 
 1. Setting up the base Flutter project with native C++ FFI capabilities.
-2. Compiling the `projectM` library for Windows, Linux, and Android.
+2. Compiling the `projectM` library for Linux and Android.
 3. Establishing the OpenGL texture bridge to stream projectM's rendered frames directly into a Flutter widget.
 4. Implementing the platform-specific audio capture channels (Android AudioPlaybackCapture, WASAPI, etc.) and feeding the raw PCM audio data into projectM.
 
@@ -69,4 +69,4 @@ Since development will occur in a Windows Subsystem for Linux (WSL) environment 
 - **Flutter SDK:** The Linux version of the Flutter SDK must be installed _inside_ WSL to ensure Linux-compatible compilation tools are available.
 - **Android Compilation:** The Android Command Line Tools (Linux version) must be installed inside WSL. Full Android Studio is not needed in WSL; only the CLI tools are required for `flutter build apk`.
 - **ADB Bridge (The Emulator Connection):** Android Emulators will run on the Windows host via Android Studio. To allow WSL's Flutter installation to see the Windows emulator, the ADB server inside WSL must be configured to connect to the ADB host on Windows over TCP (e.g., setting the WSL ADB host to connect to the Windows IP/host).
-- **Desktop Targets:** Running `flutter run -d linux` inside WSL will compile the Linux native desktop app (which can be displayed via WSLg). Compiling the Windows `.exe` native app will require checking out the repository on the Windows host and compiling it natively outside of WSL.
+- **Desktop Targets:** Running `flutter run -d linux` inside WSL will compile the Linux native desktop app (which can be displayed via WSLg).

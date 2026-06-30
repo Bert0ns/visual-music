@@ -80,41 +80,47 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
         deviceConfig.pUserData        = nullptr;
 
         if (ma_device_init(NULL, &deviceConfig, &g_audio_device) != MA_SUCCESS) {
-            std::cerr << "Failed to initialize capture device. Falling back to synthetic beat generator." << std::endl;
+            std::cerr << "Loopback failed. Falling back to microphone..." << std::endl;
+            deviceConfig = ma_device_config_init(ma_device_type_capture);
+            deviceConfig.capture.format   = ma_format_f32;
+            deviceConfig.capture.channels = 2;
+            deviceConfig.sampleRate       = 44100;
+            deviceConfig.dataCallback     = audio_data_callback;
+            deviceConfig.pUserData        = nullptr;
+            
+            if (ma_device_init(NULL, &deviceConfig, &g_audio_device) != MA_SUCCESS) {
+                std::cerr << "Microphone failed. Falling back to synthetic beat generator." << std::endl;
 
-            int sampleRate = 44100;
-            int framesPerBuffer = 512;
-            std::vector<float> buffer(framesPerBuffer * 2); // Stereo
-            
-            double phase = 0.0;
-            double beatPhase = 0.0;
-            
-            while (g_audio_running.load()) {
-                for (int i = 0; i < framesPerBuffer; i++) {
-                    // 120 BPM = 2 beats per second = 2 Hz for the envelope
-                    beatPhase += 2.0 * 3.14159265358979323846 * 2.0 / sampleRate;
-                    if (beatPhase > 2.0 * 3.14159265358979323846) beatPhase -= 2.0 * 3.14159265358979323846;
-                    
-                    // Base frequency (60Hz bass)
-                    phase += 2.0 * 3.14159265358979323846 * 60.0 / sampleRate;
-                    if (phase > 2.0 * 3.14159265358979323846) phase -= 2.0 * 3.14159265358979323846;
-                    
-                    // Envelope shape (sharp attack, exponential decay)
-                    float env = std::pow(std::max(0.0, std::sin(beatPhase)), 8.0);
-                    
-                    float sample = std::sin(phase) * env;
-                    
-                    buffer[i*2] = sample;     // Left
-                    buffer[i*2+1] = sample;   // Right
+                int sampleRate = 44100;
+                int framesPerBuffer = 512;
+                std::vector<float> buffer(framesPerBuffer * 2); // Stereo
+                
+                double phase = 0.0;
+                double beatPhase = 0.0;
+                
+                while (g_audio_running.load()) {
+                    for (int i = 0; i < framesPerBuffer; i++) {
+                        beatPhase += 2.0 * 3.14159265358979323846 * 2.0 / sampleRate;
+                        if (beatPhase > 2.0 * 3.14159265358979323846) beatPhase -= 2.0 * 3.14159265358979323846;
+                        
+                        phase += 2.0 * 3.14159265358979323846 * 60.0 / sampleRate;
+                        if (phase > 2.0 * 3.14159265358979323846) phase -= 2.0 * 3.14159265358979323846;
+                        
+                        float env = std::pow(std::max(0.0, std::sin(beatPhase)), 8.0);
+                        float sample = std::sin(phase) * env;
+                        
+                        buffer[i*2] = sample;
+                        buffer[i*2+1] = sample;
+                    }
+
+                    projectm_ffi_add_audio(g_ffi_handle, buffer.data(), framesPerBuffer);
+                    std::this_thread::sleep_for(std::chrono::milliseconds(framesPerBuffer * 1000 / sampleRate));
                 }
-
-                projectm_ffi_add_audio(g_ffi_handle, buffer.data(), framesPerBuffer);
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(framesPerBuffer * 1000 / sampleRate));
+                return; // End thread if beat generator was used and finishes
             }
-            return;
         }
 
+        // If we reach here, either loopback or microphone initialized successfully!
         if (!g_audio_running.load()) {
             ma_device_uninit(&g_audio_device);
             return;

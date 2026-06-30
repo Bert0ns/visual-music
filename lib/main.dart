@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:visual_music/core/audio/system_audio_capture.dart';
 import 'dart:ffi';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -78,7 +79,7 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     projectmSetWindowSize(_pmHandle!, 800, 600);
 
     print("Dart: Starting audio capture...");
-    projectmStartAudioCapture(_pmHandle!);
+    SystemAudioCapture.start(_pmHandle!);
     print("Dart: Audio capture started!");
 
     // Load initial preset
@@ -104,7 +105,7 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     _autoDjTimer?.cancel();
     _uiHideTimer?.cancel();
     _ticker?.dispose();
-    projectmStopAudioCapture();
+    SystemAudioCapture.stop();
     if (_pmHandle != null && _pmHandle!.address != 0) {
       projectmDestroy(_pmHandle!);
     }

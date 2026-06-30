@@ -95,4 +95,12 @@ final _StopAudioCaptureDart projectmStopAudioCapture = dylib
       'projectm_ffi_stop_audio_capture',
     );
 
+// projectm_ffi_add_audio
+typedef _AddAudioC = Void Function(Pointer<Void> handle, Pointer<Float> data, Int32 frameCount);
+typedef _AddAudioDart = void Function(Pointer<Void> handle, Pointer<Float> data, int frameCount);
+final _AddAudioDart projectmAddAudio = dylib
+    .lookupFunction<_AddAudioC, _AddAudioDart>(
+      'projectm_ffi_add_audio',
+    );
+
 // --- End ---

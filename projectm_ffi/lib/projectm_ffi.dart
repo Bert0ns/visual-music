@@ -18,56 +18,56 @@ final DynamicLibrary dylib = () {
 }();
 
 // projectm_ffi_init
-typedef _InitC = Pointer<Void> Function();
-typedef _InitDart = Pointer<Void> Function();
-final _InitDart projectmInit = dylib.lookupFunction<_InitC, _InitDart>(
+typedef InitC = Pointer<Void> Function();
+typedef InitDart = Pointer<Void> Function();
+final InitDart projectmInit = dylib.lookupFunction<InitC, InitDart>(
   'projectm_ffi_init',
 );
 
 // projectm_ffi_destroy
-typedef _DestroyC = Void Function(Pointer<Void> handle);
-typedef _DestroyDart = void Function(Pointer<Void> handle);
-final _DestroyDart projectmDestroy = dylib
-    .lookupFunction<_DestroyC, _DestroyDart>('projectm_ffi_destroy');
+typedef DestroyC = Void Function(Pointer<Void> handle);
+typedef DestroyDart = void Function(Pointer<Void> handle);
+final DestroyDart projectmDestroy = dylib
+    .lookupFunction<DestroyC, DestroyDart>('projectm_ffi_destroy');
 
 // projectm_ffi_set_window_size
-typedef _SetWindowSizeC =
+typedef SetWindowSizeC =
     Void Function(Pointer<Void> handle, Int32 width, Int32 height);
-typedef _SetWindowSizeDart =
+typedef SetWindowSizeDart =
     void Function(Pointer<Void> handle, int width, int height);
-final _SetWindowSizeDart projectmSetWindowSize = dylib
-    .lookupFunction<_SetWindowSizeC, _SetWindowSizeDart>(
+final SetWindowSizeDart projectmSetWindowSize = dylib
+    .lookupFunction<SetWindowSizeC, SetWindowSizeDart>(
       'projectm_ffi_set_window_size',
     );
 
 // projectm_ffi_render_frame
-typedef _RenderFrameC =
+typedef RenderFrameC =
     Void Function(Pointer<Void> handle, Uint32 width, Uint32 height);
-typedef _RenderFrameDart =
+typedef RenderFrameDart =
     void Function(Pointer<Void> handle, int width, int height);
-final _RenderFrameDart projectmRenderFrame = dylib
-    .lookupFunction<_RenderFrameC, _RenderFrameDart>(
+final RenderFrameDart projectmRenderFrame = dylib
+    .lookupFunction<RenderFrameC, RenderFrameDart>(
       'projectm_ffi_render_frame',
     );
 
-final Pointer<NativeFunction<_RenderFrameC>> projectmRenderFramePointer = dylib
-    .lookup<NativeFunction<_RenderFrameC>>('projectm_ffi_render_frame');
+final Pointer<NativeFunction<RenderFrameC>> projectmRenderFramePointer = dylib
+    .lookup<NativeFunction<RenderFrameC>>('projectm_ffi_render_frame');
 
 // projectm_ffi_load_preset
-typedef _LoadPresetC =
+typedef LoadPresetC =
     Void Function(
       Pointer<Void> handle,
       Pointer<Utf8> path,
-      Bool smooth_transition,
+      Bool smoothTransition,
     );
-typedef _LoadPresetDart =
+typedef LoadPresetDart =
     void Function(
       Pointer<Void> handle,
       Pointer<Utf8> path,
-      bool smooth_transition,
+      bool smoothTransition,
     );
-final _LoadPresetDart _projectmLoadPresetNative = dylib
-    .lookupFunction<_LoadPresetC, _LoadPresetDart>('projectm_ffi_load_preset');
+final LoadPresetDart _projectmLoadPresetNative = dylib
+    .lookupFunction<LoadPresetC, LoadPresetDart>('projectm_ffi_load_preset');
 
 void projectmLoadPreset(
   Pointer<Void> handle,
@@ -80,26 +80,26 @@ void projectmLoadPreset(
 }
 
 // projectm_ffi_start_audio_capture
-typedef _StartAudioCaptureC = Bool Function(Pointer<Void> handle);
-typedef _StartAudioCaptureDart = bool Function(Pointer<Void> handle);
-final _StartAudioCaptureDart projectmStartAudioCapture = dylib
-    .lookupFunction<_StartAudioCaptureC, _StartAudioCaptureDart>(
+typedef StartAudioCaptureC = Bool Function(Pointer<Void> handle);
+typedef StartAudioCaptureDart = bool Function(Pointer<Void> handle);
+final StartAudioCaptureDart projectmStartAudioCapture = dylib
+    .lookupFunction<StartAudioCaptureC, StartAudioCaptureDart>(
       'projectm_ffi_start_audio_capture',
     );
 
 // projectm_ffi_stop_audio_capture
-typedef _StopAudioCaptureC = Void Function();
-typedef _StopAudioCaptureDart = void Function();
-final _StopAudioCaptureDart projectmStopAudioCapture = dylib
-    .lookupFunction<_StopAudioCaptureC, _StopAudioCaptureDart>(
+typedef StopAudioCaptureC = Void Function();
+typedef StopAudioCaptureDart = void Function();
+final StopAudioCaptureDart projectmStopAudioCapture = dylib
+    .lookupFunction<StopAudioCaptureC, StopAudioCaptureDart>(
       'projectm_ffi_stop_audio_capture',
     );
 
 // projectm_ffi_add_audio
-typedef _AddAudioC = Void Function(Pointer<Void> handle, Pointer<Float> data, Int32 frameCount);
-typedef _AddAudioDart = void Function(Pointer<Void> handle, Pointer<Float> data, int frameCount);
-final _AddAudioDart projectmAddAudio = dylib
-    .lookupFunction<_AddAudioC, _AddAudioDart>(
+typedef AddAudioC = Void Function(Pointer<Void> handle, Pointer<Float> data, Int32 frameCount);
+typedef AddAudioDart = void Function(Pointer<Void> handle, Pointer<Float> data, int frameCount);
+final AddAudioDart projectmAddAudio = dylib
+    .lookupFunction<AddAudioC, AddAudioDart>(
       'projectm_ffi_add_audio',
     );
 

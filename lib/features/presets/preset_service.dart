@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:archive/archive_io.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+
+final _logger = Logger();
 
 class Preset {
   final int id;
@@ -92,7 +95,7 @@ class PresetService {
   }
 
   Future<void> _extractAndIndexPresets(String outputDir) async {
-    print("Extracting presets (this may take a minute)...");
+    _logger.i("Extracting presets (this may take a minute)...");
     final zipData = await rootBundle.load('assets/presets.zip');
     final bytes = zipData.buffer.asUint8List();
 
@@ -104,7 +107,7 @@ class PresetService {
       batch.insert('presets', data);
     }
     await batch.commit(noResult: true);
-    print("Extraction and indexing complete.");
+    _logger.i("Extraction and indexing complete.");
   }
 
   Future<Preset?> getRandomUnbannedPreset() async {

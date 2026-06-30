@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:logger/logger.dart';
 import 'package:visual_music/core/audio/system_audio_capture.dart';
 import 'dart:ffi';
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ import 'package:projectm_ffi/projectm_ffi.dart';
 import 'package:projectm_texture/projectm_texture.dart';
 import 'package:visual_music/features/presets/preset_service.dart';
 import 'package:visual_music/features/visualizer/overlay_ui.dart';
+
+final _logger = Logger();
 
 void main() {
   runApp(const VisualMusicApp());
@@ -52,13 +55,13 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   }
 
   Future<void> _initProjectM() async {
-    print("Dart: Initializing Preset Service...");
+    _logger.i("Dart: Initializing Preset Service...");
     await PresetService.instance.init();
     if (!mounted) return;
 
-    print("Dart: Calling projectmInit()...");
+    _logger.i("Dart: Calling projectmInit()...");
     _pmHandle = projectmInit();
-    print("Dart: projectmInit() returned: ${_pmHandle?.address}");
+    _logger.i("Dart: projectmInit() returned: ${_pmHandle?.address}");
     if (_pmHandle == null || _pmHandle!.address == 0) {
       setState(() {
         _startupError = 'Could not initialize projectM.';
@@ -66,21 +69,21 @@ class _VisualizerScreenState extends State<VisualizerScreen>
       return;
     }
 
-    print("Dart: Initializing Texture Plugin...");
+    _logger.i("Dart: Initializing Texture Plugin...");
     _textureId = await ProjectmTexture.initialize(
       800,
       600,
       projectmRenderFramePointer,
       _pmHandle!,
     );
-    print("Dart: Texture Plugin initialized with ID: $_textureId");
+    _logger.i("Dart: Texture Plugin initialized with ID: $_textureId");
     if (!mounted) return;
 
     projectmSetWindowSize(_pmHandle!, 800, 600);
 
-    print("Dart: Starting audio capture...");
+    _logger.i("Dart: Starting audio capture...");
     SystemAudioCapture.start(_pmHandle!);
-    print("Dart: Audio capture started!");
+    _logger.i("Dart: Audio capture started!");
 
     // Load initial preset
     await _loadNextPreset();

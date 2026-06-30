@@ -30,7 +30,6 @@ class ProjectmTexture {
   static Pointer<Void>? _renderContext;
   static int _fboId = 0;
 
-  /// Initializes the OpenGL texture on the platform side and returns the texture ID.
   static Future<int> initialize(
     int width,
     int height,
@@ -65,6 +64,15 @@ class ProjectmTexture {
 
   /// Requests the platform side to mark the frame as available, causing the Texture widget to redraw.
   static Future<void> requestFrame(int textureId) async {
+    if (Platform.isAndroid && _renderCallback != null && _renderContext != null) {
+      // On Android, we just call the FFI render function directly.
+      // C++ handles EGL context making, rendering, and eglSwapBuffers.
+      // SurfaceTexture automatically notifies Flutter of the new frame.
+      final renderFunc = _renderCallback!.asFunction<void Function(Pointer<Void>, int, int)>();
+      renderFunc(_renderContext!, 0, 0);
+      return; // No need to invoke MethodChannel
+    }
+    
     if (Platform.isWindows && _renderCallback != null && _renderContext != null) {
       // On Windows, we must manually lock the WGL-D3D interop texture, render it, and unlock it.
       await _channel.invokeMethod('lock');

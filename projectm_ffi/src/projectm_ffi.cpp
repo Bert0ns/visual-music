@@ -9,6 +9,48 @@ ProjectmFfiState* projectm_ffi_state_from_handle(void* handle) {
     return static_cast<ProjectmFfiState*>(handle);
 }
 
+#if defined(__ANDROID__)
+#include <EGL/egl.h>
+#include <GLES2/gl2.h>
+#include <android/native_window_jni.h>
+#include <jni.h>
+
+static EGLDisplay g_eglDisplay = EGL_NO_DISPLAY;
+static EGLContext g_eglContext = EGL_NO_CONTEXT;
+static EGLSurface g_eglSurface = EGL_NO_SURFACE;
+static ANativeWindow* g_nativeWindow = nullptr;
+static std::mutex g_eglMutex;
+
+extern "C" JNIEXPORT void JNICALL Java_com_example_projectm_1texture_ProjectmTexturePlugin_nativeSetSurface(JNIEnv* env, jobject thiz, jobject surface, jint width, jint height) {
+    std::lock_guard<std::mutex> lock(g_eglMutex);
+    
+    if (g_eglSurface != EGL_NO_SURFACE) {
+        eglDestroySurface(g_eglDisplay, g_eglSurface);
+        g_eglSurface = EGL_NO_SURFACE;
+    }
+    if (g_nativeWindow) {
+        ANativeWindow_release(g_nativeWindow);
+        g_nativeWindow = nullptr;
+    }
+    
+    if (surface) {
+        g_nativeWindow = ANativeWindow_fromSurface(env, surface);
+        if (g_nativeWindow && g_eglDisplay != EGL_NO_DISPLAY) {
+            // If display is already initialized, recreate the surface
+            EGLConfig config;
+            EGLint numConfigs;
+            const EGLint attribs[] = {
+                EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+                EGL_BLUE_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_RED_SIZE, 8,
+                EGL_NONE
+            };
+            eglChooseConfig(g_eglDisplay, attribs, &config, 1, &numConfigs);
+            g_eglSurface = eglCreateWindowSurface(g_eglDisplay, config, g_nativeWindow, nullptr);
+        }
+    }
+}
+#endif
+
 static bool file_exists(const char* path) {
     std::ifstream file(path);
     return file.good();
@@ -75,6 +117,40 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
 
     std::lock_guard<std::mutex> lock(state->mutex);
 
+#if defined(__ANDROID__)
+    g_eglMutex.lock();
+    if (!g_nativeWindow) {
+        g_eglMutex.unlock();
+        return;
+    }
+
+    if (g_eglDisplay == EGL_NO_DISPLAY) {
+        g_eglDisplay = eglGetDisplay(EGL_DEFAULT_DISPLAY);
+        eglInitialize(g_eglDisplay, nullptr, nullptr);
+
+        const EGLint attribs[] = {
+            EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
+            EGL_BLUE_SIZE, 8, EGL_GREEN_SIZE, 8, EGL_RED_SIZE, 8, EGL_ALPHA_SIZE, 8,
+            EGL_NONE
+        };
+        EGLConfig config;
+        EGLint numConfigs;
+        eglChooseConfig(g_eglDisplay, attribs, &config, 1, &numConfigs);
+
+        const EGLint contextAttribs[] = {
+            EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL_NONE
+        };
+        g_eglContext = eglCreateContext(g_eglDisplay, config, EGL_NO_CONTEXT, contextAttribs);
+        g_eglSurface = eglCreateWindowSurface(g_eglDisplay, config, g_nativeWindow, nullptr);
+    }
+    
+    if (g_eglSurface != EGL_NO_SURFACE) {
+        eglMakeCurrent(g_eglDisplay, g_eglSurface, g_eglSurface, g_eglContext);
+    }
+    g_eglMutex.unlock();
+#endif
+
     if (!state->instance) {
         std::cout << "C++: Creating projectM on render thread" << std::endl;
         state->instance = projectm_create();
@@ -103,6 +179,14 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
         }
 
         projectm_opengl_render_frame(state->instance);
+        
+#if defined(__ANDROID__)
+        g_eglMutex.lock();
+        if (g_eglDisplay != EGL_NO_DISPLAY && g_eglSurface != EGL_NO_SURFACE) {
+            eglSwapBuffers(g_eglDisplay, g_eglSurface);
+        }
+        g_eglMutex.unlock();
+#endif
     } catch (const std::exception& error) {
         state->has_pending_preset = false;
         std::cerr << "C++: projectM render/load failed: " << error.what() << std::endl;

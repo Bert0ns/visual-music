@@ -26,13 +26,15 @@ void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
     // We configured miniaudio for f32 format, so we can cast directly.
     const float* pSampleData = (const float*)pInput;
 
-    bool is_silent = true;
+    float sum_squares = 0.0f;
     for (ma_uint32 i = 0; i < frameCount * 2; ++i) {
-        if (pSampleData[i] != 0.0f) {
-            is_silent = false;
-            break;
-        }
+        sum_squares += pSampleData[i] * pSampleData[i];
     }
+    float rms = std::sqrt(sum_squares / (frameCount * 2));
+    
+    // If the captured audio is completely silent (e.g. WSLg crash or no music playing), 
+    // we inject a synthetic beat so the visualizer keeps moving.
+    bool is_silent = rms < 0.0001f;
 
     if (is_silent) {
         std::vector<float> buffer(frameCount * 2);

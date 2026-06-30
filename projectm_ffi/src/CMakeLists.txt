@@ -64,4 +64,5 @@ target_compile_definitions(projectm_ffi PUBLIC DART_SHARED_LIB)
 if (ANDROID)
   # Support Android 15 16k page size
   target_link_options(projectm_ffi PRIVATE "-Wl,-z,max-page-size=16384")
+  target_link_libraries(projectm_ffi PRIVATE EGL GLESv2 android log)
 endif()

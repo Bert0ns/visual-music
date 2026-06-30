@@ -81,10 +81,15 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
   old_scissor_test = glIsEnabled(GL_SCISSOR_TEST);
   
   glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
+  glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
   glViewport(0, 0, self->width, self->height);
 
   if (self->render_cb) {
     self->render_cb(self->render_ctx, self->width, self->height);
+    
+    // We MUST re-bind our FBO before doing anything else, or the texture remains blank.
+    // (This is a safeguard in case ProjectM internally changes the FBO)
+    glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
   } else {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
@@ -165,10 +170,13 @@ static void projectm_texture_plugin_handle_method_call(ProjectmTexturePlugin* se
     ProjectmTextureGL* texture = projectm_texture_gl_new(width, height);
     fl_texture_registrar_register_texture(self->texture_registrar, FL_TEXTURE(texture));
     
-    int64_t texture_id = reinterpret_cast<int64_t>(FL_TEXTURE(texture));
-    global_textures[texture_id] = texture;
+    // fl_texture_registrar_register_texture assigns an internal ID. We must get it using fl_texture_get_id.
+    int64_t actual_id = fl_texture_get_id(FL_TEXTURE(texture));
+    
+    // Store the mapping so we can retrieve it in requestFrame or setCallback
+    global_textures[actual_id] = texture;
 
-    g_autoptr(FlValue) result = fl_value_new_int(texture_id);
+    g_autoptr(FlValue) result = fl_value_new_int(actual_id);
     fl_method_call_respond(method_call, FL_METHOD_RESPONSE(fl_method_success_response_new(result)), nullptr);
   } else if (strcmp(method, "requestFrame") == 0) {
     FlValue* args = fl_method_call_get_args(method_call);

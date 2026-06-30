@@ -89,12 +89,12 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     setState(() {});
 
     // 4. Start render loop
-    bool _isRequesting = false;
+    bool isRequesting = false;
     _ticker = createTicker((elapsed) async {
-      if (_textureId != null && !_isRequesting) {
-        _isRequesting = true;
+      if (_textureId != null && !isRequesting) {
+        isRequesting = true;
         await ProjectmTexture.requestFrame(_textureId!);
-        _isRequesting = false;
+        isRequesting = false;
       }
     });
     _ticker?.start();

@@ -26,11 +26,11 @@ class OverlayUI extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(
-            0.7,
+          color: Colors.black.withValues(
+            alpha: 0.7,
           ), // Solid transparent instead of blur
           borderRadius: BorderRadius.circular(30),
-          border: Border.all(color: Colors.white.withOpacity(0.2)),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

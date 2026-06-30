@@ -103,4 +103,31 @@ final AddAudioDart projectmAddAudio = dylib
       'projectm_ffi_add_audio',
     );
 
+// projectm_ffi_play_file
+typedef PlayFileC = Bool Function(Pointer<Void> handle, Pointer<Utf8> path);
+typedef PlayFileDart = bool Function(Pointer<Void> handle, Pointer<Utf8> path);
+final PlayFileDart _projectmPlayFileNative = dylib.lookupFunction<PlayFileC, PlayFileDart>('projectm_ffi_play_file');
+
+bool projectmPlayFile(Pointer<Void> handle, String path) {
+  final pathPtr = path.toNativeUtf8();
+  final result = _projectmPlayFileNative(handle, pathPtr);
+  malloc.free(pathPtr);
+  return result;
+}
+
+// projectm_ffi_pause_audio
+typedef PauseAudioC = Void Function();
+typedef PauseAudioDart = void Function();
+final PauseAudioDart projectmPauseAudio = dylib.lookupFunction<PauseAudioC, PauseAudioDart>('projectm_ffi_pause_audio');
+
+// projectm_ffi_resume_audio
+typedef ResumeAudioC = Void Function();
+typedef ResumeAudioDart = void Function();
+final ResumeAudioDart projectmResumeAudio = dylib.lookupFunction<ResumeAudioC, ResumeAudioDart>('projectm_ffi_resume_audio');
+
+// projectm_ffi_stop_audio
+typedef StopAudioC = Void Function();
+typedef StopAudioDart = void Function();
+final StopAudioDart projectmStopAudio = dylib.lookupFunction<StopAudioC, StopAudioDart>('projectm_ffi_stop_audio');
+
 // --- End ---

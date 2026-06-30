@@ -8,6 +8,8 @@ import 'package:projectm_ffi/projectm_ffi.dart';
 import 'package:projectm_texture/projectm_texture.dart';
 import 'package:visual_music/features/presets/preset_service.dart';
 import 'package:visual_music/features/visualizer/overlay_ui.dart';
+import 'package:visual_music/core/audio/internal_audio_player.dart';
+import 'package:visual_music/features/visualizer/widgets/music_player_bar.dart';
 
 final _logger = Logger();
 
@@ -68,6 +70,9 @@ class _VisualizerScreenState extends State<VisualizerScreen>
       });
       return;
     }
+
+    _logger.i("Dart: Initializing InternalAudioPlayer...");
+    InternalAudioPlayer.instance.init(_pmHandle!);
 
     _logger.i("Dart: Initializing Texture Plugin...");
     _textureId = await ProjectmTexture.initialize(
@@ -231,6 +236,22 @@ class _VisualizerScreenState extends State<VisualizerScreen>
                           _wakeUi();
                           _banPreset();
                         },
+                      ),
+                    ),
+                  ),
+                ),
+              if (_textureId != null)
+                Positioned(
+                  top: 40,
+                  left: 0,
+                  right: 0,
+                  child: AnimatedOpacity(
+                    opacity: _isUiVisible ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: IgnorePointer(
+                      ignoring: !_isUiVisible,
+                      child: const Center(
+                        child: MusicPlayerBar(),
                       ),
                     ),
                   ),

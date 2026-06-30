@@ -40,6 +40,7 @@ lib/
 
 - **Fail Gracefully:** Never allow an unhandled C++ exception to crash the Dart application. Catch errors at the FFI boundary and pass them back as error codes or custom Dart Exceptions.
 - **Centralized Logging:** Do not use `print()`. Use a dedicated logging package (like `logger`) to record errors, especially for debugging native audio capture and OpenGL issues across different OS platforms.
+- Use `flutter analyze` to check for compile errors
 
 ## 6. Reuse, Modularity & Component Independence
 

@@ -19,6 +19,7 @@ struct _ProjectmTextureGL {
   FlTextureGL parent_instance;
   GLuint fbo_id;
   GLuint texture_id;
+  GLuint depth_rb;
   uint32_t width;
   uint32_t height;
   RenderCallback render_cb;
@@ -35,8 +36,12 @@ static void projectm_texture_gl_dispose(GObject* object) {
   }
   if (self->fbo_id != 0) {
     glDeleteFramebuffers(1, &self->fbo_id);
-    self->fbo_id = 0;
   }
+  if (self->depth_rb != 0) {
+    glDeleteRenderbuffers(1, &self->depth_rb);
+  }
+  self->fbo_id = 0;
+  self->depth_rb = 0;
   G_OBJECT_CLASS(projectm_texture_gl_parent_class)->dispose(object);
 }
 
@@ -55,6 +60,13 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
     glGenFramebuffers(1, &self->fbo_id);
     glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, self->texture_id, 0);
+
+    // CRITICAL: ProjectM requires a depth/stencil buffer for many presets.
+    // Without it, glClear(GL_DEPTH_BUFFER_BIT) fails, causing the frame to abort silently!
+    glGenRenderbuffers(1, &self->depth_rb);
+    glBindRenderbuffer(GL_RENDERBUFFER, self->depth_rb);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, self->width, self->height);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, self->depth_rb);
   }
 
   // Save state
@@ -85,22 +97,28 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
   glViewport(0, 0, self->width, self->height);
 
   if (self->render_cb) {
+    glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
+    glViewport(0, 0, self->width, self->height);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    // Clear to black
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f); 
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    // 2. Call ProjectM
     self->render_cb(self->render_ctx, self->width, self->height);
     
-    // We MUST re-bind our FBO before doing anything else, or the texture remains blank.
-    // (This is a safeguard in case ProjectM internally changes the FBO)
+    // 3. Re-bind and force Alpha to 1.0 so it's opaque to Flutter
     glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
     
-    // Force the Alpha channel to 1.0 (Opaque) because projectM often leaves alpha at 0, 
-    // which makes Flutter render the texture completely invisible.
+    // CRITICAL: ProjectM often leaves GL_SCISSOR_TEST enabled, which restricts 
+    // where glClear can draw! If scissor is active, our alpha fix does NOTHING.
+    glDisable(GL_SCISSOR_TEST);
+    
     glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
-    // DEBUG: Clear with RED to see if the Texture widget is actually displaying our FBO!
-    // If the screen is RED, Flutter and the FBO are working, but ProjectM isn't drawing.
-    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     
-    // Ensure all OpenGL commands are submitted before Flutter reads the texture
     glFlush();
   } else {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);

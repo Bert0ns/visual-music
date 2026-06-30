@@ -56,6 +56,11 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle);
 // Stop audio capture
 FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio_capture();
 
+FFI_PLUGIN_EXPORT bool projectm_ffi_play_file(void* handle, const char* filepath);
+FFI_PLUGIN_EXPORT void projectm_ffi_pause_audio();
+FFI_PLUGIN_EXPORT void projectm_ffi_resume_audio();
+FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio();
+
 #ifdef __cplusplus
 }
 #endif

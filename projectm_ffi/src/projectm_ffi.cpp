@@ -64,9 +64,13 @@ FFI_PLUGIN_EXPORT void projectm_ffi_add_audio(void* handle, const float* data, i
         return;
     }
 
-    std::lock_guard<std::mutex> lock(state->mutex);
-    if (state->instance) {
-        projectm_pcm_add_float(state->instance, data, frameCount, PROJECTM_STEREO);
+    // DO NOT LOCK state->mutex HERE!
+    // The render thread holds the mutex for up to 16ms during projectm_opengl_render_frame.
+    // Blocking the audio thread for 16ms causes severe audio crackling and lag.
+    // ProjectM's projectm_pcm_add_float is thread-safe and uses a lock-free ring buffer internally!
+    projectm_handle instance = state->instance;
+    if (instance) {
+        projectm_pcm_add_float(instance, data, frameCount, PROJECTM_STEREO);
     }
 }
 

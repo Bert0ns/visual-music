@@ -9,6 +9,7 @@
 #include <thread>
 #include <cmath>
 #include <vector>
+#include <mutex>
 
 static ma_device g_audio_device;
 static std::atomic_bool g_audio_running{false};
@@ -17,6 +18,32 @@ static void* g_ffi_handle = nullptr;
 
 static double g_synth_phase = 0.0;
 static double g_synth_beat_phase = 0.0;
+
+// Playback State
+static ma_decoder g_playback_decoder;
+static ma_device g_playback_device;
+static std::atomic_bool g_playback_running{false};
+static std::atomic_bool g_is_playing{false};
+static std::mutex g_playback_mutex;
+
+void playback_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount) {
+    if (!g_is_playing.load()) {
+        memset(pOutput, 0, frameCount * 2 * sizeof(float));
+        return;
+    }
+    
+    ma_uint64 framesRead = 0;
+    ma_decoder_read_pcm_frames(&g_playback_decoder, pOutput, (ma_uint64)frameCount, &framesRead);
+    
+    if (framesRead < frameCount) {
+        memset((float*)pOutput + (framesRead * 2), 0, (frameCount - framesRead) * 2 * sizeof(float));
+        g_is_playing.store(false);
+    }
+    
+    if (g_ffi_handle) {
+        projectm_ffi_add_audio(g_ffi_handle, (const float*)pOutput, frameCount);
+    }
+}
 
 void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
@@ -32,9 +59,9 @@ void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
     }
     float rms = std::sqrt(sum_squares / (frameCount * 2));
     
-    // If the captured audio is completely silent (e.g. WSLg crash or no music playing), 
-    // we inject a synthetic beat so the visualizer keeps moving.
-    bool is_silent = rms < 0.0001f;
+    // Force synthetic beat generator to run! 
+    // The dummy microphone in WSL produces static noise (rms > 0), causing projectM to render black.
+    bool is_silent = true; 
 
     if (is_silent) {
         std::vector<float> buffer(frameCount * 2);
@@ -147,6 +174,66 @@ FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio_capture() {
             ma_device_uninit(&g_audio_device);
         }
         g_ffi_handle = nullptr;
+    }
+}
+
+FFI_PLUGIN_EXPORT bool projectm_ffi_play_file(void* handle, const char* filepath) {
+    std::lock_guard<std::mutex> lock(g_playback_mutex);
+    if (!handle || !filepath) return false;
+    
+    g_ffi_handle = handle;
+    
+    if (g_playback_running.load()) {
+        ma_device_uninit(&g_playback_device);
+        ma_decoder_uninit(&g_playback_decoder);
+        g_playback_running.store(false);
+    }
+    
+    ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 2, 44100);
+    if (ma_decoder_init_file(filepath, &decoderConfig, &g_playback_decoder) != MA_SUCCESS) {
+        std::cerr << "Failed to open file: " << filepath << std::endl;
+        return false;
+    }
+    
+    ma_device_config deviceConfig = ma_device_config_init(ma_device_type_playback);
+    deviceConfig.playback.format   = ma_format_f32;
+    deviceConfig.playback.channels = 2;
+    deviceConfig.sampleRate       = 44100;
+    deviceConfig.dataCallback     = playback_data_callback;
+    deviceConfig.pUserData        = nullptr;
+    
+    if (ma_device_init(NULL, &deviceConfig, &g_playback_device) != MA_SUCCESS) {
+        std::cerr << "Failed to initialize playback device." << std::endl;
+        ma_decoder_uninit(&g_playback_decoder);
+        return false;
+    }
+    
+    if (ma_device_start(&g_playback_device) != MA_SUCCESS) {
+        ma_device_uninit(&g_playback_device);
+        ma_decoder_uninit(&g_playback_decoder);
+        return false;
+    }
+    
+    g_playback_running.store(true);
+    g_is_playing.store(true);
+    return true;
+}
+
+FFI_PLUGIN_EXPORT void projectm_ffi_pause_audio() {
+    g_is_playing.store(false);
+}
+
+FFI_PLUGIN_EXPORT void projectm_ffi_resume_audio() {
+    g_is_playing.store(true);
+}
+
+FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio() {
+    std::lock_guard<std::mutex> lock(g_playback_mutex);
+    g_is_playing.store(false);
+    if (g_playback_running.load()) {
+        ma_device_uninit(&g_playback_device);
+        ma_decoder_uninit(&g_playback_decoder);
+        g_playback_running.store(false);
     }
 }
 

@@ -1,7 +1,4 @@
-import 'dart:io';
 import 'dart:ffi';
-import 'dart:typed_data';
-import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
 import 'package:projectm_ffi/projectm_ffi.dart';
 

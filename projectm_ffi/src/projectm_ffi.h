@@ -18,7 +18,6 @@ struct ProjectmFfiState {
 };
 
 ProjectmFfiState* projectm_ffi_state_from_handle(void* handle);
-projectm_handle projectm_ffi_native_handle(void* handle);
 #endif
 
 #if _WIN32
@@ -30,6 +29,9 @@ projectm_handle projectm_ffi_native_handle(void* handle);
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Add audio data thread-safely
+FFI_PLUGIN_EXPORT void projectm_ffi_add_audio(void* handle, const float* data, int frameCount);
 
 // Initialize wrapper state and return a handle.
 // The underlying projectM instance is created lazily on the render thread,

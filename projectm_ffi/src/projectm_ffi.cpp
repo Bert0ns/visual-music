@@ -9,22 +9,24 @@ ProjectmFfiState* projectm_ffi_state_from_handle(void* handle) {
     return static_cast<ProjectmFfiState*>(handle);
 }
 
-projectm_handle projectm_ffi_native_handle(void* handle) {
-    ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
-    if (!state) {
-        return nullptr;
-    }
-
-    std::lock_guard<std::mutex> lock(state->mutex);
-    return state->instance;
-}
-
 static bool file_exists(const char* path) {
     std::ifstream file(path);
     return file.good();
 }
 
 extern "C" {
+
+FFI_PLUGIN_EXPORT void projectm_ffi_add_audio(void* handle, const float* data, int frameCount) {
+    ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
+    if (!state || !data || frameCount <= 0) {
+        return;
+    }
+
+    std::lock_guard<std::mutex> lock(state->mutex);
+    if (state->instance) {
+        projectm_pcm_add_float(state->instance, data, frameCount, PROJECTM_STEREO);
+    }
+}
 
 FFI_PLUGIN_EXPORT void* projectm_ffi_init() {
     std::cout << "C++: projectm_ffi_init creating wrapper state" << std::endl;

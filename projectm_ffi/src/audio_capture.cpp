@@ -15,19 +15,45 @@ static std::atomic_bool g_audio_running{false};
 static std::atomic_bool g_audio_device_ready{false};
 static void* g_ffi_handle = nullptr;
 
+static double g_synth_phase = 0.0;
+static double g_synth_beat_phase = 0.0;
+
 void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
     // pInput contains the captured audio
-    projectm_handle pm_handle = projectm_ffi_native_handle(g_ffi_handle);
-    if (pInput == nullptr || pm_handle == nullptr) return;
+    if (pInput == nullptr || g_ffi_handle == nullptr) return;
 
     // We configured miniaudio for f32 format, so we can cast directly.
     const float* pSampleData = (const float*)pInput;
 
-    // Add audio to projectM. 
-    // projectM expects samples to be within the range -1 to 1.
-    // If it's stereo, we pass PROJECTM_STEREO. Our miniaudio is set to stereo below.
-    projectm_pcm_add_float(pm_handle, pSampleData, frameCount, PROJECTM_STEREO);
+    bool is_silent = true;
+    for (ma_uint32 i = 0; i < frameCount * 2; ++i) {
+        if (pSampleData[i] != 0.0f) {
+            is_silent = false;
+            break;
+        }
+    }
+
+    if (is_silent) {
+        std::vector<float> buffer(frameCount * 2);
+        int sampleRate = pDevice->sampleRate;
+        for (ma_uint32 i = 0; i < frameCount; i++) {
+            g_synth_beat_phase += 2.0 * 3.14159265358979323846 * 2.0 / sampleRate;
+            if (g_synth_beat_phase > 2.0 * 3.14159265358979323846) g_synth_beat_phase -= 2.0 * 3.14159265358979323846;
+            
+            g_synth_phase += 2.0 * 3.14159265358979323846 * 60.0 / sampleRate;
+            if (g_synth_phase > 2.0 * 3.14159265358979323846) g_synth_phase -= 2.0 * 3.14159265358979323846;
+            
+            float env = std::pow(std::max(0.0, std::sin(g_synth_beat_phase)), 8.0);
+            float sample = std::sin(g_synth_phase) * env;
+            
+            buffer[i*2] = sample;
+            buffer[i*2+1] = sample;
+        }
+        projectm_ffi_add_audio(g_ffi_handle, buffer.data(), frameCount);
+    } else {
+        projectm_ffi_add_audio(g_ffi_handle, pSampleData, frameCount);
+    }
 }
 
 extern "C" {
@@ -46,7 +72,7 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
     g_ffi_handle = handle;
 
     std::thread([]() {
-        ma_device_config deviceConfig = ma_device_config_init(ma_device_type_capture);
+        ma_device_config deviceConfig = ma_device_config_init(ma_device_type_loopback);
         deviceConfig.capture.format   = ma_format_f32;
         deviceConfig.capture.channels = 2;
         deviceConfig.sampleRate       = 44100;
@@ -82,10 +108,7 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
                     buffer[i*2+1] = sample;   // Right
                 }
 
-                projectm_handle pm_handle = projectm_ffi_native_handle(g_ffi_handle);
-                if (pm_handle) {
-                    projectm_pcm_add_float(pm_handle, buffer.data(), framesPerBuffer, PROJECTM_STEREO);
-                }
+                projectm_ffi_add_audio(g_ffi_handle, buffer.data(), framesPerBuffer);
 
                 std::this_thread::sleep_for(std::chrono::milliseconds(framesPerBuffer * 1000 / sampleRate));
             }

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <fstream>
 #include <iostream>
+#include <cstdlib>
 
 ProjectmFfiState* projectm_ffi_state_from_handle(void* handle) {
     return static_cast<ProjectmFfiState*>(handle);
@@ -80,6 +81,9 @@ FFI_PLUGIN_EXPORT void projectm_ffi_add_audio(void* handle, const float* data, i
 
 FFI_PLUGIN_EXPORT void* projectm_ffi_init() {
     std::cout << "C++: projectm_ffi_init creating wrapper state" << std::endl;
+    // Limit llvmpipe (WSL software renderer) to 2 threads to prevent it from 
+    // starving the audio thread during heavy preset compilations!
+    setenv("LP_NUM_THREADS", "2", 0);
     return static_cast<void*>(new ProjectmFfiState());
 }
 
@@ -183,14 +187,32 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
     try {
         projectm_set_window_size(state->instance, state->width, state->height);
 
+        std::string preset_to_load;
+        bool smooth_trans = false;
+        std::string texture_path_to_set;
         if (state->has_pending_preset) {
-            std::cout << "C++: Loading pending preset: " << state->pending_preset_path << std::endl;
+            preset_to_load = state->pending_preset_path;
+            smooth_trans = state->pending_smooth_transition;
+            state->has_pending_preset = false;
+        }
+        if (state->has_pending_texture_path) {
+            texture_path_to_set = state->pending_texture_path;
+            state->has_pending_texture_path = false;
+        }
+
+        if (!texture_path_to_set.empty()) {
+            std::cout << "C++: Setting texture path: " << texture_path_to_set << std::endl;
+            const char* paths[] = { texture_path_to_set.c_str() };
+            projectm_set_texture_search_paths(state->instance, paths, 1);
+        }
+
+        if (!preset_to_load.empty()) {
+            std::cout << "C++: Loading pending preset: " << preset_to_load << std::endl;
             projectm_load_preset_file(
                 state->instance,
-                state->pending_preset_path.c_str(),
-                state->pending_smooth_transition
+                preset_to_load.c_str(),
+                smooth_trans
             );
-            state->has_pending_preset = false;
             std::cout << "C++: Pending preset loaded!" << std::endl;
         }
 
@@ -209,6 +231,15 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
     } catch (...) {
         state->has_pending_preset = false;
         std::cerr << "C++: projectM render/load failed with an unknown error" << std::endl;
+    }
+}
+
+FFI_PLUGIN_EXPORT void projectm_ffi_set_texture_search_path(void* handle, const char* path) {
+    ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
+    if (state && path) {
+        std::lock_guard<std::mutex> lock(state->mutex);
+        state->pending_texture_path = path;
+        state->has_pending_texture_path = true;
     }
 }
 

@@ -207,6 +207,7 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_play_file(void* handle, const char* filepath
     deviceConfig.playback.format   = ma_format_f32;
     deviceConfig.playback.channels = 2;
     deviceConfig.sampleRate       = 44100;
+    deviceConfig.periodSizeInMilliseconds = 300; // Extra large buffer to ride out 200ms shader stalls
     deviceConfig.dataCallback     = playback_data_callback;
     deviceConfig.pUserData        = nullptr;
     
@@ -230,17 +231,11 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_play_file(void* handle, const char* filepath
 FFI_PLUGIN_EXPORT void projectm_ffi_pause_audio() {
     std::lock_guard<std::mutex> lock(g_playback_mutex);
     g_is_playing.store(false);
-    if (g_playback_running.load()) {
-        ma_device_stop(&g_playback_device);
-    }
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_resume_audio() {
     std::lock_guard<std::mutex> lock(g_playback_mutex);
     g_is_playing.store(true);
-    if (g_playback_running.load()) {
-        ma_device_start(&g_playback_device);
-    }
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio() {

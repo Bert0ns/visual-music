@@ -79,6 +79,18 @@ void projectmLoadPreset(
   malloc.free(pathPtr);
 }
 
+// projectm_ffi_set_texture_search_path
+typedef SetTextureSearchPathC = Void Function(Pointer<Void> handle, Pointer<Utf8> path);
+typedef SetTextureSearchPathDart = void Function(Pointer<Void> handle, Pointer<Utf8> path);
+final SetTextureSearchPathDart _projectmSetTextureSearchPathNative = dylib
+    .lookupFunction<SetTextureSearchPathC, SetTextureSearchPathDart>('projectm_ffi_set_texture_search_path');
+
+void projectmSetTextureSearchPath(Pointer<Void> handle, String path) {
+  final pathPtr = path.toNativeUtf8();
+  _projectmSetTextureSearchPathNative(handle, pathPtr);
+  malloc.free(pathPtr);
+}
+
 // projectm_ffi_start_audio_capture
 typedef StartAudioCaptureC = Bool Function(Pointer<Void> handle);
 typedef StartAudioCaptureDart = bool Function(Pointer<Void> handle);

@@ -14,6 +14,10 @@ struct ProjectmFfiState {
     std::string pending_preset_path;
     bool has_pending_preset{false};
     bool pending_smooth_transition{true};
+
+    std::string pending_texture_path;
+    bool has_pending_texture_path{false};
+
     std::mutex mutex;
 };
 

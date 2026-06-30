@@ -85,12 +85,34 @@ class PresetService {
       ),
     );
 
-    // Extract presets if we haven't already
     final countResult = await _db!.rawQuery('SELECT COUNT(*) FROM presets');
     final count = countResult.first.values.first as int;
     if (count == 0) {
       await _extractAndIndexPresets(presetsDir);
     }
+    
+    // Extract textures
+    _logger.i("Dart: Checking if textures are extracted...");
+    final texturesDir = p.join(appDir.path, 'visual_music', 'textures');
+    final textureFlagFile = File(p.join(texturesDir, '.extracted'));
+    if (!await textureFlagFile.exists()) {
+      _logger.i("Dart: Texture flag file not found. Extracting to $texturesDir...");
+      await _extractTextures(texturesDir);
+      await textureFlagFile.writeAsString('done');
+      _logger.i("Dart: Textures fully extracted!");
+    } else {
+      _logger.i("Dart: Textures already extracted.");
+    }
+    _logger.i("Dart: PresetService init complete.");
+  }
+
+  Future<void> _extractTextures(String outputDir) async {
+    _logger.i("Extracting textures...");
+    await Directory(outputDir).create(recursive: true);
+    final zipData = await rootBundle.load('assets/textures.zip');
+    final bytes = zipData.buffer.asUint8List();
+    await compute(isolateExtractTextures, {'bytes': bytes, 'outputDir': outputDir});
+    _logger.i("Textures extracted.");
   }
 
   Future<void> _extractAndIndexPresets(String outputDir) async {
@@ -146,23 +168,23 @@ class PresetService {
   }
 }
 
-Future<List<Map<String, dynamic>>> isolateExtract(Map<String, dynamic> params) async {
-  final bytes = params['bytes'] as Uint8List;
-  final outputDir = params['outputDir'] as String;
-  
+Future<List<Map<String, dynamic>>> isolateExtract(Map<String, dynamic> args) {
+  final bytes = args['bytes'] as Uint8List;
+  final outputDir = args['outputDir'] as String;
+
   final archive = ZipDecoder().decodeBytes(bytes);
-  final List<Map<String, dynamic>> batchData = [];
-  
+  final List<Map<String, dynamic>> presets = [];
+
   for (final file in archive) {
-    if (file.isFile && file.name.endsWith('.milk')) {
+    if (file.isFile && file.name.toLowerCase().endsWith('.milk')) {
       final filename = p.basename(file.name);
       final outputPath = p.join(outputDir, filename);
-      
-      final outFile = File(outputPath);
-      // Synchronous write avoids queuing 40,000 futures in the event loop
-      outFile.writeAsBytesSync(file.content as List<int>);
 
-      batchData.add({
+      final outputFile = File(outputPath);
+      outputFile.createSync(recursive: true);
+      outputFile.writeAsBytesSync(file.content as List<int>);
+
+      presets.add({
         'name': p.basenameWithoutExtension(filename),
         'path': outputPath,
         'is_banned': 0,
@@ -170,5 +192,24 @@ Future<List<Map<String, dynamic>>> isolateExtract(Map<String, dynamic> params) a
       });
     }
   }
-  return batchData;
+
+  return Future.value(presets);
+}
+
+void isolateExtractTextures(Map<String, dynamic> args) {
+  final bytes = args['bytes'] as Uint8List;
+  final outputDir = args['outputDir'] as String;
+
+  final archive = ZipDecoder().decodeBytes(bytes);
+
+  for (final file in archive) {
+    if (file.isFile) {
+      final filename = p.basename(file.name);
+      final outputPath = p.join(outputDir, filename);
+
+      final outputFile = File(outputPath);
+      outputFile.createSync(recursive: true);
+      outputFile.writeAsBytesSync(file.content as List<int>);
+    }
+  }
 }

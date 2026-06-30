@@ -10,6 +10,8 @@ import 'package:visual_music/features/presets/preset_service.dart';
 import 'package:visual_music/features/visualizer/overlay_ui.dart';
 import 'package:visual_music/core/audio/internal_audio_player.dart';
 import 'package:visual_music/features/visualizer/widgets/music_player_bar.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 final _logger = Logger();
 
@@ -57,55 +59,80 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   }
 
   Future<void> _initProjectM() async {
-    _logger.i("Dart: Initializing Preset Service...");
-    await PresetService.instance.init();
-    if (!mounted) return;
+    try {
+      _logger.i("Dart: Initializing Preset Service...");
+      await PresetService.instance.init();
+      if (!mounted) return;
 
-    _logger.i("Dart: Calling projectmInit()...");
-    _pmHandle = projectmInit();
-    _logger.i("Dart: projectmInit() returned: ${_pmHandle?.address}");
-    if (_pmHandle == null || _pmHandle!.address == 0) {
-      setState(() {
-        _startupError = 'Could not initialize projectM.';
-      });
-      return;
-    }
-
-    _logger.i("Dart: Initializing InternalAudioPlayer...");
-    InternalAudioPlayer.instance.init(_pmHandle!);
-
-    _logger.i("Dart: Initializing Texture Plugin...");
-    _textureId = await ProjectmTexture.initialize(
-      800,
-      600,
-      projectmRenderFramePointer,
-      _pmHandle!,
-    );
-    _logger.i("Dart: Texture Plugin initialized with ID: $_textureId");
-    if (!mounted) return;
-
-    projectmSetWindowSize(_pmHandle!, 800, 600);
-
-    _logger.i("Dart: Starting audio capture...");
-    SystemAudioCapture.start(_pmHandle!);
-    _logger.i("Dart: Audio capture started!");
-
-    // Load initial preset
-    await _loadNextPreset();
-    if (!mounted) return;
-
-    setState(() {});
-
-    // 4. Start render loop
-    bool isRequesting = false;
-    _ticker = createTicker((elapsed) async {
-      if (_textureId != null && !isRequesting) {
-        isRequesting = true;
-        await ProjectmTexture.requestFrame(_textureId!);
-        isRequesting = false;
+      _logger.i("Dart: Calling projectmInit()...");
+      _pmHandle = projectmInit();
+      _logger.i("Dart: projectmInit() returned: ${_pmHandle?.address}");
+      if (_pmHandle == null || _pmHandle!.address == 0) {
+        setState(() {
+          _startupError = 'Could not initialize projectM.';
+        });
+        return;
       }
-    });
-    _ticker?.start();
+
+      _logger.i("Dart: Setting texture search path...");
+      final appDir = await getApplicationDocumentsDirectory();
+      final texturesDir = p.join(appDir.path, 'visual_music', 'textures');
+      _logger.i("Dart: Textures dir: $texturesDir");
+      projectmSetTextureSearchPath(_pmHandle!, texturesDir);
+      _logger.i("Dart: Texture search path set!");
+
+      _logger.i("Dart: Initializing InternalAudioPlayer...");
+      InternalAudioPlayer.instance.init(_pmHandle!);
+
+      _logger.i("Dart: Initializing Texture Plugin...");
+      _textureId = await ProjectmTexture.initialize(
+        800,
+        600,
+        projectmRenderFramePointer,
+        _pmHandle!,
+      );
+      _logger.i("Dart: Texture Plugin initialized with ID: $_textureId");
+      if (!mounted) return;
+
+      _logger.i("Dart: Setting Window Size...");
+      projectmSetWindowSize(_pmHandle!, 800, 600);
+
+      _logger.i("Dart: Starting audio capture...");
+      SystemAudioCapture.start(_pmHandle!);
+      _logger.i("Dart: Audio capture started!");
+
+      _logger.i("Dart: Loading initial preset...");
+      await _loadNextPreset();
+      if (!mounted) return;
+
+      _logger.i("Dart: Updating state to clear spinner...");
+      setState(() {});
+
+      _logger.i("Dart: Starting render ticker...");
+      bool isRequesting = false;
+      Duration lastFrameTime = Duration.zero;
+      _ticker = createTicker((elapsed) async {
+        // Cap framerate to ~30 FPS (33ms) to drastically reduce CPU usage 
+        // since WSL uses llvmpipe (software rendering on the CPU).
+        if (elapsed - lastFrameTime < const Duration(milliseconds: 33)) return;
+        lastFrameTime = elapsed;
+
+        if (_textureId != null && !isRequesting) {
+          isRequesting = true;
+          await ProjectmTexture.requestFrame(_textureId!);
+          isRequesting = false;
+        }
+      });
+      _ticker?.start();
+      _logger.i("Dart: Init sequence completely finished!");
+    } catch (e, stack) {
+      _logger.e("Dart: Error initializing ProjectM", error: e, stackTrace: stack);
+      if (mounted) {
+        setState(() {
+          _startupError = 'Error: $e';
+        });
+      }
+    }
   }
 
   @override

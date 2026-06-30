@@ -89,11 +89,11 @@ Building a high-performance cross-platform music visualizer using Flutter and th
 **Description:** Build the transparent UI overlay that auto-hides. Add controls for Play/Pause, Next Preset, Heart, and Ban.
 **Acceptance criteria:**
 
-- [ ] UI hides after 3 seconds of inactivity.
-- [ ] Tapping/Mouse movement wakes the UI.
-- [ ] Buttons dispatch actions to State Management.
+- [x] UI hides after 3 seconds of inactivity.
+- [x] Tapping/Mouse movement wakes the UI.
+- [x] Buttons dispatch actions to State Management.
       **Verification:**
-- [ ] Manual check: Interact with the app, verify overlay animations and state updates.
+- [x] Manual check: Interact with the app, verify overlay animations and state updates.
       **Dependencies:** Task 4
       **Files likely touched:** `lib/features/visualizer/views/immersive_overlay.dart`, `lib/features/visualizer/controllers/ui_controller.dart`
       **Estimated scope:** Medium
@@ -103,11 +103,11 @@ Building a high-performance cross-platform music visualizer using Flutter and th
 **Description:** Implement the timer to switch presets every 15-30s. Save Heart/Ban status directly into the SQLite database so banned presets are efficiently skipped during queries.
 **Acceptance criteria:**
 
-- [ ] Preset changes automatically every X seconds by querying the SQLite DB for a random unbanned preset.
-- [ ] Banned presets are flagged in the database and never appear again.
+- [x] Preset changes automatically every X seconds by querying the SQLite DB for a random unbanned preset.
+- [x] Banned presets are flagged in the database and never appear again.
       **Verification:**
-- [ ] Tests pass: Write a unit test for the Auto-DJ queue logic.
-- [ ] Manual check: Wait 30s to see preset change; ban a preset and ensure it doesn't appear again.
+- [x] Tests pass: Write a unit test for the Auto-DJ queue logic.
+- [x] Manual check: Wait 30s to see preset change; ban a preset and ensure it doesn't appear again.
       **Dependencies:** Task 4, Task 5
       **Files likely touched:** `lib/features/presets/auto_dj_service.dart`
       **Estimated scope:** Small

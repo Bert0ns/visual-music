@@ -22,6 +22,22 @@ class Preset {
     required this.isHearted,
   });
 
+  Preset copyWith({
+    int? id,
+    String? name,
+    String? path,
+    bool? isBanned,
+    bool? isHearted,
+  }) {
+    return Preset(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      path: path ?? this.path,
+      isBanned: isBanned ?? this.isBanned,
+      isHearted: isHearted ?? this.isHearted,
+    );
+  }
+
   factory Preset.fromMap(Map<String, dynamic> map) {
     return Preset(
       id: map['id'],
@@ -105,6 +121,26 @@ class PresetService {
       return Preset.fromMap(results.first);
     }
     return null;
+  }
+
+  Future<void> toggleHeart(String presetPath, bool isHearted) async {
+    if (_db == null) return;
+    await _db!.update(
+      'presets',
+      {'is_hearted': isHearted ? 1 : 0},
+      where: 'path = ?',
+      whereArgs: [presetPath],
+    );
+  }
+
+  Future<void> banPreset(String presetPath) async {
+    if (_db == null) return;
+    await _db!.update(
+      'presets',
+      {'is_banned': 1},
+      where: 'path = ?',
+      whereArgs: [presetPath],
+    );
   }
 }
 

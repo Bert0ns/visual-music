@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:visual_music/features/presets/preset_service.dart';
 import 'package:visual_music/features/visualizer/overlay_ui.dart';
 
 void main() {
@@ -12,10 +13,18 @@ void main() {
           body: Stack(
             children: [
               OverlayUI(
-                currentPresetName: 'Test Preset',
+                currentPreset: Preset(
+                  id: 1,
+                  name: 'Test Preset',
+                  path: '/test/path',
+                  isBanned: false,
+                  isHearted: false,
+                ),
                 isAutoDjEnabled: true,
                 onNextPreset: () {},
                 onToggleAutoDj: () {},
+                onToggleHeart: () {},
+                onBanPreset: () {},
               ),
             ],
           ),

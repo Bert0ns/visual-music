@@ -36,15 +36,18 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   int? _textureId;
   Pointer<Void>? _pmHandle;
   Ticker? _ticker;
-  String? _currentPresetName;
+  Preset? _currentPreset;
   bool _isAutoDjEnabled = false;
   Timer? _autoDjTimer;
   String? _startupError;
+  bool _isUiVisible = true;
+  Timer? _uiHideTimer;
 
   @override
   void initState() {
     super.initState();
     _initProjectM();
+    _wakeUi();
   }
 
   Future<void> _initProjectM() async {
@@ -99,12 +102,28 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   @override
   void dispose() {
     _autoDjTimer?.cancel();
+    _uiHideTimer?.cancel();
     _ticker?.dispose();
     projectmStopAudioCapture();
     if (_pmHandle != null && _pmHandle!.address != 0) {
       projectmDestroy(_pmHandle!);
     }
     super.dispose();
+  }
+
+  void _wakeUi() {
+    if (!mounted) return;
+    setState(() {
+      _isUiVisible = true;
+    });
+    _uiHideTimer?.cancel();
+    _uiHideTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) {
+        setState(() {
+          _isUiVisible = false;
+        });
+      }
+    });
   }
 
   Future<void> _loadNextPreset() async {
@@ -114,8 +133,28 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     if (nextPreset != null && _pmHandle != null && _pmHandle!.address != 0) {
       projectmLoadPreset(_pmHandle!, nextPreset.path, true);
       setState(() {
-        _currentPresetName = nextPreset.name;
+        _currentPreset = nextPreset;
       });
+    }
+  }
+
+  Future<void> _toggleHeart() async {
+    if (_currentPreset != null) {
+      final newHeartState = !_currentPreset!.isHearted;
+      await PresetService.instance.toggleHeart(
+        _currentPreset!.path,
+        newHeartState,
+      );
+      setState(() {
+        _currentPreset = _currentPreset!.copyWith(isHearted: newHeartState);
+      });
+    }
+  }
+
+  Future<void> _banPreset() async {
+    if (_currentPreset != null) {
+      await PresetService.instance.banPreset(_currentPreset!.path);
+      _loadNextPreset();
     }
   }
 
@@ -137,30 +176,64 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Stack(
-        children: [
-          Center(
-            child: _startupError != null
-                ? Text(
-                    _startupError!,
-                    style: const TextStyle(color: Colors.white),
-                  )
-                : _textureId == null
-                ? const CircularProgressIndicator()
-                : SizedBox(
-                    width: 800,
-                    height: 600,
-                    child: Texture(textureId: _textureId!),
+      body: MouseRegion(
+        onHover: (_) => _wakeUi(),
+        child: GestureDetector(
+          onTap: _wakeUi,
+          onPanUpdate: (_) => _wakeUi(),
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            children: [
+              Center(
+                child: _startupError != null
+                    ? Text(
+                        _startupError!,
+                        style: const TextStyle(color: Colors.white),
+                      )
+                    : _textureId == null
+                    ? const CircularProgressIndicator()
+                    : SizedBox(
+                        width: double.infinity,
+                        height: double.infinity,
+                        child: Texture(textureId: _textureId!),
+                      ),
+              ),
+              if (_textureId != null)
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: AnimatedOpacity(
+                    opacity: _isUiVisible ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    child: IgnorePointer(
+                      ignoring: !_isUiVisible,
+                      child: OverlayUI(
+                        currentPreset: _currentPreset,
+                        isAutoDjEnabled: _isAutoDjEnabled,
+                        onNextPreset: () {
+                          _wakeUi();
+                          _loadNextPreset();
+                        },
+                        onToggleAutoDj: () {
+                          _wakeUi();
+                          _toggleAutoDj();
+                        },
+                        onToggleHeart: () {
+                          _wakeUi();
+                          _toggleHeart();
+                        },
+                        onBanPreset: () {
+                          _wakeUi();
+                          _banPreset();
+                        },
+                      ),
+                    ),
                   ),
+                ),
+            ],
           ),
-          if (_textureId != null)
-            OverlayUI(
-              currentPresetName: _currentPresetName,
-              isAutoDjEnabled: _isAutoDjEnabled,
-              onNextPreset: _loadNextPreset,
-              onToggleAutoDj: _toggleAutoDj,
-            ),
-        ],
+        ),
       ),
     );
   }

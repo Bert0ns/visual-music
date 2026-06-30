@@ -3,19 +3,23 @@
 #include "projectm_ffi.h"
 #include <projectM-4/projectM.h>
 #include <projectM-4/audio.h>
+#include <atomic>
+#include <chrono>
 #include <iostream>
 #include <thread>
 #include <cmath>
 #include <vector>
 
 static ma_device g_audio_device;
-static bool g_audio_initialized = false;
-static projectm_handle g_pm_handle = nullptr;
+static std::atomic_bool g_audio_running{false};
+static std::atomic_bool g_audio_device_ready{false};
+static void* g_ffi_handle = nullptr;
 
 void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, ma_uint32 frameCount)
 {
     // pInput contains the captured audio
-    if (pInput == nullptr || g_pm_handle == nullptr) return;
+    projectm_handle pm_handle = projectm_ffi_native_handle(g_ffi_handle);
+    if (pInput == nullptr || pm_handle == nullptr) return;
 
     // We configured miniaudio for f32 format, so we can cast directly.
     const float* pSampleData = (const float*)pInput;
@@ -23,18 +27,23 @@ void audio_data_callback(ma_device* pDevice, void* pOutput, const void* pInput, 
     // Add audio to projectM. 
     // projectM expects samples to be within the range -1 to 1.
     // If it's stereo, we pass PROJECTM_STEREO. Our miniaudio is set to stereo below.
-    projectm_pcm_add_float(g_pm_handle, pSampleData, frameCount, PROJECTM_STEREO);
+    projectm_pcm_add_float(pm_handle, pSampleData, frameCount, PROJECTM_STEREO);
 }
 
 extern "C" {
 
 FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
-    if (g_audio_initialized) {
+    if (handle == nullptr) {
+        return false;
+    }
+
+    bool expected = false;
+    if (!g_audio_running.compare_exchange_strong(expected, true)) {
         // Already capturing
         return true;
     }
 
-    g_pm_handle = reinterpret_cast<projectm_handle>(handle);
+    g_ffi_handle = handle;
 
     std::thread([]() {
         ma_device_config deviceConfig = ma_device_config_init(ma_device_type_capture);
@@ -46,10 +55,7 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
 
         if (ma_device_init(NULL, &deviceConfig, &g_audio_device) != MA_SUCCESS) {
             std::cerr << "Failed to initialize capture device. Falling back to synthetic beat generator." << std::endl;
-            
-            // Synthetic heartbeat generator loop
-            g_audio_initialized = true; // Mark as initialized
-            
+
             int sampleRate = 44100;
             int framesPerBuffer = 512;
             std::vector<float> buffer(framesPerBuffer * 2); // Stereo
@@ -57,7 +63,7 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
             double phase = 0.0;
             double beatPhase = 0.0;
             
-            while (g_audio_initialized) {
+            while (g_audio_running.load()) {
                 for (int i = 0; i < framesPerBuffer; i++) {
                     // 120 BPM = 2 beats per second = 2 Hz for the envelope
                     beatPhase += 2.0 * 3.14159265358979323846 * 2.0 / sampleRate;
@@ -75,33 +81,41 @@ FFI_PLUGIN_EXPORT bool projectm_ffi_start_audio_capture(void* handle) {
                     buffer[i*2] = sample;     // Left
                     buffer[i*2+1] = sample;   // Right
                 }
-                
-                if (g_pm_handle) {
-                    projectm_pcm_add_float(g_pm_handle, buffer.data(), framesPerBuffer, PROJECTM_STEREO);
+
+                projectm_handle pm_handle = projectm_ffi_native_handle(g_ffi_handle);
+                if (pm_handle) {
+                    projectm_pcm_add_float(pm_handle, buffer.data(), framesPerBuffer, PROJECTM_STEREO);
                 }
-                
+
                 std::this_thread::sleep_for(std::chrono::milliseconds(framesPerBuffer * 1000 / sampleRate));
             }
+            return;
+        }
+
+        if (!g_audio_running.load()) {
+            ma_device_uninit(&g_audio_device);
             return;
         }
 
         if (ma_device_start(&g_audio_device) != MA_SUCCESS) {
             std::cerr << "Failed to start capture device." << std::endl;
             ma_device_uninit(&g_audio_device);
+            g_audio_running.store(false);
             return;
         }
 
-        g_audio_initialized = true;
+        g_audio_device_ready.store(true);
     }).detach();
     
     return true;
 }
 
 FFI_PLUGIN_EXPORT void projectm_ffi_stop_audio_capture() {
-    if (g_audio_initialized) {
-        ma_device_uninit(&g_audio_device);
-        g_audio_initialized = false;
-        g_pm_handle = nullptr;
+    if (g_audio_running.exchange(false)) {
+        if (g_audio_device_ready.exchange(false)) {
+            ma_device_uninit(&g_audio_device);
+        }
+        g_ffi_handle = nullptr;
     }
 }
 

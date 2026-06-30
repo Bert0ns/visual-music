@@ -62,6 +62,9 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
   GLint old_viewport[4], old_scissor[4];
   GLboolean old_blend, old_depth, old_cull, old_scissor_test;
   GLboolean old_color_mask[4], old_depth_mask;
+  GLint old_unpack_align, old_pack_align;
+  glGetIntegerv(GL_UNPACK_ALIGNMENT, &old_unpack_align);
+  glGetIntegerv(GL_PACK_ALIGNMENT, &old_pack_align);
   glGetIntegerv(GL_ACTIVE_TEXTURE, &old_active_tex);
   glGetIntegerv(GL_FRAMEBUFFER_BINDING, &old_fbo);
   glGetIntegerv(GL_CURRENT_PROGRAM, &old_program);
@@ -98,6 +101,8 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
   glScissor(old_scissor[0], old_scissor[1], old_scissor[2], old_scissor[3]);
   glColorMask(old_color_mask[0], old_color_mask[1], old_color_mask[2], old_color_mask[3]);
   glDepthMask(old_depth_mask);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, old_unpack_align);
+  glPixelStorei(GL_PACK_ALIGNMENT, old_pack_align);
   
   if (old_blend) glEnable(GL_BLEND); else glDisable(GL_BLEND);
   if (old_depth) glEnable(GL_DEPTH_TEST); else glDisable(GL_DEPTH_TEST);

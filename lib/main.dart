@@ -5,6 +5,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:projectm_ffi/projectm_ffi.dart';
 import 'package:projectm_texture/projectm_texture.dart';
 import 'package:visual_music/features/presets/preset_service.dart';
+import 'package:visual_music/features/visualizer/overlay_ui.dart';
 
 void main() {
   runApp(const VisualMusicApp());
@@ -30,10 +31,15 @@ class VisualizerScreen extends StatefulWidget {
   State<VisualizerScreen> createState() => _VisualizerScreenState();
 }
 
-class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerProviderStateMixin {
+class _VisualizerScreenState extends State<VisualizerScreen>
+    with SingleTickerProviderStateMixin {
   int? _textureId;
   Pointer<Void>? _pmHandle;
-  late Ticker _ticker;
+  Ticker? _ticker;
+  String? _currentPresetName;
+  bool _isAutoDjEnabled = false;
+  Timer? _autoDjTimer;
+  String? _startupError;
 
   @override
   void initState() {
@@ -44,10 +50,17 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
   Future<void> _initProjectM() async {
     print("Dart: Initializing Preset Service...");
     await PresetService.instance.init();
-    
+    if (!mounted) return;
+
     print("Dart: Calling projectmInit()...");
     _pmHandle = projectmInit();
     print("Dart: projectmInit() returned: ${_pmHandle?.address}");
+    if (_pmHandle == null || _pmHandle!.address == 0) {
+      setState(() {
+        _startupError = 'Could not initialize projectM.';
+      });
+      return;
+    }
 
     print("Dart: Initializing Texture Plugin...");
     _textureId = await ProjectmTexture.initialize(
@@ -57,18 +70,17 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
       _pmHandle!,
     );
     print("Dart: Texture Plugin initialized with ID: $_textureId");
-    
+    if (!mounted) return;
+
     projectmSetWindowSize(_pmHandle!, 800, 600);
-    
+
     print("Dart: Starting audio capture...");
     projectmStartAudioCapture(_pmHandle!);
     print("Dart: Audio capture started!");
 
-    // Load a random preset
-    final randomPreset = await PresetService.instance.getRandomUnbannedPreset();
-    if (randomPreset != null) {
-      projectmLoadPreset(_pmHandle!, randomPreset.path, true);
-    }
+    // Load initial preset
+    await _loadNextPreset();
+    if (!mounted) return;
 
     setState(() {});
 
@@ -81,31 +93,74 @@ class _VisualizerScreenState extends State<VisualizerScreen> with SingleTickerPr
         _isRequesting = false;
       }
     });
-    _ticker.start();
+    _ticker?.start();
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _autoDjTimer?.cancel();
+    _ticker?.dispose();
     projectmStopAudioCapture();
-    if (_pmHandle != null) {
+    if (_pmHandle != null && _pmHandle!.address != 0) {
       projectmDestroy(_pmHandle!);
     }
     super.dispose();
+  }
+
+  Future<void> _loadNextPreset() async {
+    final nextPreset = await PresetService.instance.getRandomUnbannedPreset();
+    if (!mounted) return;
+
+    if (nextPreset != null && _pmHandle != null && _pmHandle!.address != 0) {
+      projectmLoadPreset(_pmHandle!, nextPreset.path, true);
+      setState(() {
+        _currentPresetName = nextPreset.name;
+      });
+    }
+  }
+
+  void _toggleAutoDj() {
+    setState(() {
+      _isAutoDjEnabled = !_isAutoDjEnabled;
+      if (_isAutoDjEnabled) {
+        _autoDjTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+          _loadNextPreset();
+        });
+      } else {
+        _autoDjTimer?.cancel();
+        _autoDjTimer = null;
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: Center(
-        child: _textureId == null
-            ? const CircularProgressIndicator()
-            : SizedBox(
-                width: 800,
-                height: 600,
-                child: Texture(textureId: _textureId!),
-              ),
+      body: Stack(
+        children: [
+          Center(
+            child: _startupError != null
+                ? Text(
+                    _startupError!,
+                    style: const TextStyle(color: Colors.white),
+                  )
+                : _textureId == null
+                ? const CircularProgressIndicator()
+                : SizedBox(
+                    width: 800,
+                    height: 600,
+                    child: Texture(textureId: _textureId!),
+                  ),
+          ),
+          if (_textureId != null)
+            OverlayUI(
+              currentPresetName: _currentPresetName,
+              isAutoDjEnabled: _isAutoDjEnabled,
+              onNextPreset: _loadNextPreset,
+              onToggleAutoDj: _toggleAutoDj,
+            ),
+        ],
       ),
     );
   }

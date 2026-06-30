@@ -8,7 +8,7 @@ include(FetchContent)
 
 set(ENABLE_SDL_UI OFF CACHE BOOL "Disable SDL UI" FORCE)
 set(BUILD_TESTING OFF CACHE BOOL "Disable tests" FORCE)
-set(ENABLE_GLES OFF CACHE BOOL "Disable GLES" FORCE) # Keep standard OpenGL for now, we can tweak this later for Android
+set(ENABLE_GLES ON CACHE BOOL "Use GLES for Flutter EGL contexts" FORCE)
 
 # Workaround for projectM bug: it uses CMAKE_PROJECT_VERSION instead of PROJECT_VERSION
 set(CMAKE_PROJECT_VERSION_MAJOR "4")

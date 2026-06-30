@@ -2,6 +2,25 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifdef __cplusplus
+#include <mutex>
+#include <string>
+#include <projectM-4/projectM.h>
+
+struct ProjectmFfiState {
+    projectm_handle instance{nullptr};
+    uint32_t width{800};
+    uint32_t height{600};
+    std::string pending_preset_path;
+    bool has_pending_preset{false};
+    bool pending_smooth_transition{true};
+    std::mutex mutex;
+};
+
+ProjectmFfiState* projectm_ffi_state_from_handle(void* handle);
+projectm_handle projectm_ffi_native_handle(void* handle);
+#endif
+
 #if _WIN32
 #define FFI_PLUGIN_EXPORT __declspec(dllexport)
 #else
@@ -12,8 +31,9 @@
 extern "C" {
 #endif
 
-// Initialize projectM and return a handle.
-// Must be called on a thread with an active OpenGL context.
+// Initialize wrapper state and return a handle.
+// The underlying projectM instance is created lazily on the render thread,
+// where Flutter's OpenGL context is current.
 FFI_PLUGIN_EXPORT void* projectm_ffi_init();
 
 // Destroy the projectM instance

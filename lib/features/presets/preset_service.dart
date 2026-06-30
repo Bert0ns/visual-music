@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:logger/logger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:archive/archive_io.dart';
@@ -100,7 +99,7 @@ class PresetService {
     final bytes = zipData.buffer.asUint8List();
 
     // Use compute to offload the heavy extraction to a background Isolate
-    final batchData = await isolateExtract({'bytes': bytes, 'outputDir': outputDir});
+    final batchData = await compute(isolateExtract, {'bytes': bytes, 'outputDir': outputDir});
 
     final batch = _db!.batch();
     for (final data in batchData) {

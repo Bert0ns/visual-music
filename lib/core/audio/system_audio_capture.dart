@@ -1,10 +1,7 @@
 import 'dart:ffi';
-import 'package:flutter/services.dart';
 import 'package:projectm_ffi/projectm_ffi.dart';
 
 class SystemAudioCapture {
-  static const MethodChannel _methodChannel = MethodChannel('com.example.visual_music/audio_control');
-  static const EventChannel _eventChannel = EventChannel('com.example.visual_music/audio_data');
   static bool _isCapturing = false;
 
   /// Starts system audio capture (loopback).

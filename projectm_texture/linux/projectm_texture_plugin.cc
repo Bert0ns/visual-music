@@ -50,7 +50,7 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
     glBindTexture(GL_TEXTURE_2D, self->texture_id);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, self->width, self->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, self->width, self->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
     
     glGenFramebuffers(1, &self->fbo_id);
     glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
@@ -90,6 +90,18 @@ static gboolean projectm_texture_gl_populate(FlTextureGL* texture, uint32_t* tar
     // We MUST re-bind our FBO before doing anything else, or the texture remains blank.
     // (This is a safeguard in case ProjectM internally changes the FBO)
     glBindFramebuffer(GL_FRAMEBUFFER, self->fbo_id);
+    
+    // Force the Alpha channel to 1.0 (Opaque) because projectM often leaves alpha at 0, 
+    // which makes Flutter render the texture completely invisible.
+    glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
+    // DEBUG: Clear with RED to see if the Texture widget is actually displaying our FBO!
+    // If the screen is RED, Flutter and the FBO are working, but ProjectM isn't drawing.
+    glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    
+    // Ensure all OpenGL commands are submitted before Flutter reads the texture
+    glFlush();
   } else {
     glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT);

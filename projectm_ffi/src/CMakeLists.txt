@@ -20,6 +20,18 @@ set(CMAKE_PROJECT_VERSION_MINOR "1")
 set(CMAKE_PROJECT_VERSION_PATCH "6")
 set(CMAKE_PROJECT_VERSION "4.1.6")
 
+# Add cmake module path so it finds our dummy FindGLEW.cmake
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+if(WIN32)
+  FetchContent_Declare(
+    glew
+    GIT_REPOSITORY https://github.com/Perlmint/glew-cmake.git
+    GIT_TAG        glew-2.2.0
+  )
+  FetchContent_MakeAvailable(glew)
+endif()
+
 FetchContent_Declare(
   projectM
   GIT_REPOSITORY https://github.com/projectM-visualizer/projectm.git

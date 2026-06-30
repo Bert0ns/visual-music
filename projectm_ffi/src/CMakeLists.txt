@@ -30,6 +30,7 @@ if(WIN32)
     GIT_TAG        glew-2.2.0
   )
   FetchContent_MakeAvailable(glew)
+  include_directories("${glew_SOURCE_DIR}/include")
 endif()
 
 FetchContent_Declare(

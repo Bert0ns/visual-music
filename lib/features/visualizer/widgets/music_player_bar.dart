@@ -1,35 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logger/logger.dart';
 import 'package:visual_music/core/audio/internal_audio_player.dart';
 
-class MusicPlayerBar extends StatefulWidget {
+final _logger = Logger();
+
+class MusicPlayerBar extends ConsumerWidget {
   const MusicPlayerBar({super.key});
 
-  @override
-  State<MusicPlayerBar> createState() => _MusicPlayerBarState();
-}
-
-class _MusicPlayerBarState extends State<MusicPlayerBar> {
-  final _player = InternalAudioPlayer.instance;
-
-  @override
-  void initState() {
-    super.initState();
-    _player.addListener(_onPlayerStateChanged);
-  }
-
-  @override
-  void dispose() {
-    _player.removeListener(_onPlayerStateChanged);
-    super.dispose();
-  }
-
-  void _onPlayerStateChanged() {
-    setState(() {});
-  }
-
-  Future<void> _pickAndPlayFile() async {
+  Future<void> _pickAndPlayFile(BuildContext context, WidgetRef ref) async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
@@ -37,17 +18,17 @@ class _MusicPlayerBarState extends State<MusicPlayerBar> {
       );
 
       if (result != null && result.files.single.path != null) {
-        await _player.playFile(result.files.single.path!);
+        await ref.read(internalAudioPlayerProvider.notifier).playFile(result.files.single.path!);
       }
     } catch (e) {
-      debugPrint("Native file picker failed: $e");
-      if (mounted) {
-        _showManualPathDialog();
+      _logger.e("Native file picker failed: $e");
+      if (context.mounted) {
+        _showManualPathDialog(context, ref);
       }
     }
   }
 
-  void _showManualPathDialog() {
+  void _showManualPathDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -72,7 +53,7 @@ class _MusicPlayerBarState extends State<MusicPlayerBar> {
               onPressed: () {
                 Navigator.pop(context);
                 if (controller.text.isNotEmpty) {
-                  _player.playFile(controller.text);
+                  ref.read(internalAudioPlayerProvider.notifier).playFile(controller.text);
                 }
               },
               child: const Text("Play"),
@@ -84,7 +65,10 @@ class _MusicPlayerBarState extends State<MusicPlayerBar> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final audioState = ref.watch(internalAudioPlayerProvider);
+    final audioNotifier = ref.read(internalAudioPlayerProvider.notifier);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -101,33 +85,33 @@ class _MusicPlayerBarState extends State<MusicPlayerBar> {
             children: [
               IconButton(
                 icon: const Icon(Icons.library_music, color: Colors.white70),
-                onPressed: _pickAndPlayFile,
+                onPressed: () => _pickAndPlayFile(context, ref),
                 tooltip: "Load Track",
               ),
               const SizedBox(width: 8),
-              if (_player.state == AudioPlayerState.playing)
+              if (audioState.state == AudioPlayerState.playing)
                 IconButton(
                   icon: const Icon(Icons.pause, color: Colors.white, size: 32),
-                  onPressed: _player.pause,
+                  onPressed: audioNotifier.pause,
                 )
               else
                 IconButton(
                   icon: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
-                  onPressed: _player.state == AudioPlayerState.paused
-                      ? _player.resume
-                      : _pickAndPlayFile,
+                  onPressed: audioState.state == AudioPlayerState.paused
+                      ? audioNotifier.resume
+                      : () => _pickAndPlayFile(context, ref),
                 ),
-              if (_player.state != AudioPlayerState.stopped) ...[
+              if (audioState.state != AudioPlayerState.stopped) ...[
                 IconButton(
                   icon: const Icon(Icons.stop, color: Colors.white70),
-                  onPressed: _player.stop,
+                  onPressed: audioNotifier.stop,
                 ),
               ],
               const SizedBox(width: 16),
               Container(
                 constraints: const BoxConstraints(maxWidth: 250),
                 child: Text(
-                  _player.currentTrackName ?? "No Track Loaded",
+                  audioState.currentTrackName ?? "No Track Loaded",
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,

@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'package:logger/logger.dart';
-import 'package:flutter/foundation.dart';
-import 'package:archive/archive_io.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:visual_music/features/presets/preset_extractor.dart';
 
-final _logger = Logger();
+final presetServiceProvider = Provider<PresetService>((ref) {
+  return PresetService();
+});
 
 class Preset {
   final int id;
@@ -52,9 +53,7 @@ class Preset {
 }
 
 class PresetService {
-  static final PresetService instance = PresetService._();
-  PresetService._();
-
+  final _logger = Logger();
   Database? _db;
 
   Future<void> init() async {
@@ -88,7 +87,12 @@ class PresetService {
     final countResult = await _db!.rawQuery('SELECT COUNT(*) FROM presets');
     final count = countResult.first.values.first as int;
     if (count == 0) {
-      await _extractAndIndexPresets(presetsDir);
+      final batchData = await PresetExtractor.extractAndIndexPresets(presetsDir);
+      final batch = _db!.batch();
+      for (final data in batchData) {
+        batch.insert('presets', data);
+      }
+      await batch.commit(noResult: true);
     }
     
     // Extract textures
@@ -97,38 +101,13 @@ class PresetService {
     final textureFlagFile = File(p.join(texturesDir, '.extracted'));
     if (!await textureFlagFile.exists()) {
       _logger.i("Dart: Texture flag file not found. Extracting to $texturesDir...");
-      await _extractTextures(texturesDir);
+      await PresetExtractor.extractTextures(texturesDir);
       await textureFlagFile.writeAsString('done');
       _logger.i("Dart: Textures fully extracted!");
     } else {
       _logger.i("Dart: Textures already extracted.");
     }
     _logger.i("Dart: PresetService init complete.");
-  }
-
-  Future<void> _extractTextures(String outputDir) async {
-    _logger.i("Extracting textures...");
-    await Directory(outputDir).create(recursive: true);
-    final zipData = await rootBundle.load('assets/textures.zip');
-    final bytes = zipData.buffer.asUint8List();
-    await compute(isolateExtractTextures, {'bytes': bytes, 'outputDir': outputDir});
-    _logger.i("Textures extracted.");
-  }
-
-  Future<void> _extractAndIndexPresets(String outputDir) async {
-    _logger.i("Extracting presets (this may take a minute)...");
-    final zipData = await rootBundle.load('assets/presets.zip');
-    final bytes = zipData.buffer.asUint8List();
-
-    // Use compute to offload the heavy extraction to a background Isolate
-    final batchData = await compute(isolateExtract, {'bytes': bytes, 'outputDir': outputDir});
-
-    final batch = _db!.batch();
-    for (final data in batchData) {
-      batch.insert('presets', data);
-    }
-    await batch.commit(noResult: true);
-    _logger.i("Extraction and indexing complete.");
   }
 
   Future<Preset?> getRandomUnbannedPreset() async {
@@ -165,51 +144,5 @@ class PresetService {
       where: 'path = ?',
       whereArgs: [presetPath],
     );
-  }
-}
-
-Future<List<Map<String, dynamic>>> isolateExtract(Map<String, dynamic> args) {
-  final bytes = args['bytes'] as Uint8List;
-  final outputDir = args['outputDir'] as String;
-
-  final archive = ZipDecoder().decodeBytes(bytes);
-  final List<Map<String, dynamic>> presets = [];
-
-  for (final file in archive) {
-    if (file.isFile && file.name.toLowerCase().endsWith('.milk')) {
-      final filename = p.basename(file.name);
-      final outputPath = p.join(outputDir, filename);
-
-      final outputFile = File(outputPath);
-      outputFile.createSync(recursive: true);
-      outputFile.writeAsBytesSync(file.content as List<int>);
-
-      presets.add({
-        'name': p.basenameWithoutExtension(filename),
-        'path': outputPath,
-        'is_banned': 0,
-        'is_hearted': 0,
-      });
-    }
-  }
-
-  return Future.value(presets);
-}
-
-void isolateExtractTextures(Map<String, dynamic> args) {
-  final bytes = args['bytes'] as Uint8List;
-  final outputDir = args['outputDir'] as String;
-
-  final archive = ZipDecoder().decodeBytes(bytes);
-
-  for (final file in archive) {
-    if (file.isFile) {
-      final filename = p.basename(file.name);
-      final outputPath = p.join(outputDir, filename);
-
-      final outputFile = File(outputPath);
-      outputFile.createSync(recursive: true);
-      outputFile.writeAsBytesSync(file.content as List<int>);
-    }
   }
 }

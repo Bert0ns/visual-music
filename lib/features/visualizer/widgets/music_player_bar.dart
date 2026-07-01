@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logger/logger.dart';
-import 'package:visual_music/core/audio/internal_audio_player.dart';
+import 'package:visual_music/core/audio/audio_controller.dart';
 
 final _logger = Logger();
 
@@ -18,7 +18,7 @@ class MusicPlayerBar extends ConsumerWidget {
       );
 
       if (result != null && result.files.single.path != null) {
-        await ref.read(internalAudioPlayerProvider.notifier).playFile(result.files.single.path!);
+        await ref.read(audioControllerProvider.notifier).playLocalFile(result.files.single.path!);
       }
     } catch (e) {
       _logger.e("Native file picker failed: $e");
@@ -53,7 +53,7 @@ class MusicPlayerBar extends ConsumerWidget {
               onPressed: () {
                 Navigator.pop(context);
                 if (controller.text.isNotEmpty) {
-                  ref.read(internalAudioPlayerProvider.notifier).playFile(controller.text);
+                  ref.read(audioControllerProvider.notifier).playLocalFile(controller.text);
                 }
               },
               child: const Text("Play"),
@@ -66,8 +66,13 @@ class MusicPlayerBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final audioState = ref.watch(internalAudioPlayerProvider);
-    final audioNotifier = ref.read(internalAudioPlayerProvider.notifier);
+    final audioState = ref.watch(audioControllerProvider);
+    final audioNotifier = ref.read(audioControllerProvider.notifier);
+    
+    final isPlaying = audioState.activeSource == AudioSource.localFile && 
+                      audioState.localPlaybackStatus == AudioPlaybackStatus.playing;
+    final isPaused = audioState.activeSource == AudioSource.localFile && 
+                     audioState.localPlaybackStatus == AudioPlaybackStatus.paused;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
@@ -89,29 +94,31 @@ class MusicPlayerBar extends ConsumerWidget {
                 tooltip: "Load Track",
               ),
               const SizedBox(width: 8),
-              if (audioState.state == AudioPlayerState.playing)
+              if (isPlaying)
                 IconButton(
                   icon: const Icon(Icons.pause, color: Colors.white, size: 32),
-                  onPressed: audioNotifier.pause,
+                  onPressed: audioNotifier.pauseLocalFile,
                 )
               else
                 IconButton(
                   icon: const Icon(Icons.play_arrow, color: Colors.white, size: 32),
-                  onPressed: audioState.state == AudioPlayerState.paused
-                      ? audioNotifier.resume
+                  onPressed: isPaused
+                      ? audioNotifier.resumeLocalFile
                       : () => _pickAndPlayFile(context, ref),
                 ),
-              if (audioState.state != AudioPlayerState.stopped) ...[
+              if (audioState.activeSource == AudioSource.localFile && audioState.localPlaybackStatus != AudioPlaybackStatus.stopped) ...[
                 IconButton(
                   icon: const Icon(Icons.stop, color: Colors.white70),
-                  onPressed: audioNotifier.stop,
+                  onPressed: audioNotifier.stopLocalFile,
                 ),
               ],
               const SizedBox(width: 16),
               Container(
                 constraints: const BoxConstraints(maxWidth: 250),
                 child: Text(
-                  audioState.currentTrackName ?? "No Track Loaded",
+                  audioState.activeSource == AudioSource.system 
+                    ? "System Audio (Live)" 
+                    : (audioState.currentTrackName ?? "No Track Loaded"),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 16,

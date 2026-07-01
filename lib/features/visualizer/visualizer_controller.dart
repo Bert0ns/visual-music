@@ -6,8 +6,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:projectm_ffi/projectm_ffi.dart';
 import 'package:projectm_texture/projectm_texture.dart';
-import 'package:visual_music/core/audio/internal_audio_player.dart';
-import 'package:visual_music/core/audio/system_audio_capture.dart';
+import 'package:visual_music/core/audio/audio_controller.dart';
 import 'package:visual_music/features/presets/preset_service.dart';
 
 class VisualizerState {
@@ -78,8 +77,8 @@ class VisualizerController extends Notifier<VisualizerState> {
       final texturesDir = p.join(appDir.path, 'visual_music', 'textures');
       projectmSetTextureSearchPath(pmHandle, texturesDir);
 
-      _logger.i("Dart: Initializing InternalAudioPlayer...");
-      ref.read(internalAudioPlayerProvider.notifier).init(pmHandle);
+      _logger.i("Dart: Initializing AudioController...");
+      ref.read(audioControllerProvider.notifier).init(pmHandle);
 
       _logger.i("Dart: Initializing Texture Plugin...");
       final textureId = await ProjectmTexture.initialize(
@@ -91,9 +90,6 @@ class VisualizerController extends Notifier<VisualizerState> {
 
       _logger.i("Dart: Setting Window Size...");
       projectmSetWindowSize(pmHandle, 400, 300);
-
-      _logger.i("Dart: Starting audio capture...");
-      SystemAudioCapture.start(pmHandle);
 
       state = state.copyWith(textureId: textureId, pmHandle: pmHandle);
 
@@ -181,7 +177,7 @@ class VisualizerController extends Notifier<VisualizerState> {
   void disposeAll() {
     _autoDjTimer?.cancel();
     _uiHideTimer?.cancel();
-    SystemAudioCapture.stop();
+    ref.read(audioControllerProvider.notifier).disposeAll();
     if (state.pmHandle != null && state.pmHandle!.address != 0) {
       projectmDestroy(state.pmHandle!);
     }

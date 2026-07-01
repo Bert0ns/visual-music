@@ -45,7 +45,7 @@ class _VisualizerScreenState extends State<VisualizerScreen>
   Pointer<Void>? _pmHandle;
   Ticker? _ticker;
   Preset? _currentPreset;
-  bool _isAutoDjEnabled = false;
+  bool _isAutoDjEnabled = true;
   Timer? _autoDjTimer;
   String? _startupError;
   bool _isUiVisible = true;
@@ -56,6 +56,13 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     super.initState();
     _initProjectM();
     _wakeUi();
+  }
+
+  void _startAutoDj() {
+    _autoDjTimer?.cancel();
+    _autoDjTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      _loadNextPreset();
+    });
   }
 
   Future<void> _initProjectM() async {
@@ -86,8 +93,8 @@ class _VisualizerScreenState extends State<VisualizerScreen>
 
       _logger.i("Dart: Initializing Texture Plugin...");
       _textureId = await ProjectmTexture.initialize(
-        800,
-        600,
+        400,
+        300,
         projectmRenderFramePointer,
         _pmHandle!,
       );
@@ -95,7 +102,7 @@ class _VisualizerScreenState extends State<VisualizerScreen>
       if (!mounted) return;
 
       _logger.i("Dart: Setting Window Size...");
-      projectmSetWindowSize(_pmHandle!, 800, 600);
+      projectmSetWindowSize(_pmHandle!, 400, 300);
 
       _logger.i("Dart: Starting audio capture...");
       SystemAudioCapture.start(_pmHandle!);
@@ -105,6 +112,10 @@ class _VisualizerScreenState extends State<VisualizerScreen>
       await _loadNextPreset();
       if (!mounted) return;
 
+      if (_isAutoDjEnabled) {
+        _startAutoDj();
+      }
+
       _logger.i("Dart: Updating state to clear spinner...");
       setState(() {});
 
@@ -112,9 +123,12 @@ class _VisualizerScreenState extends State<VisualizerScreen>
       bool isRequesting = false;
       Duration lastFrameTime = Duration.zero;
       _ticker = createTicker((elapsed) async {
-        // Cap framerate to ~30 FPS (33ms) to drastically reduce CPU usage 
-        // since WSL uses llvmpipe (software rendering on the CPU).
-        if (elapsed - lastFrameTime < const Duration(milliseconds: 33)) return;
+        // Use adaptive framerate: 20 FPS when playing music (heavy presets use
+        // 25ms+ per frame on llvmpipe, leaving no CPU for the audio thread at 30 FPS).
+        // 30 FPS when idle (no music playing).
+        final isPlaying = InternalAudioPlayer.instance.state == AudioPlayerState.playing;
+        final frameInterval = Duration(milliseconds: isPlaying ? 50 : 33);
+        if (elapsed - lastFrameTime < frameInterval) return;
         lastFrameTime = elapsed;
 
         if (_textureId != null && !isRequesting) {
@@ -124,9 +138,10 @@ class _VisualizerScreenState extends State<VisualizerScreen>
         }
       });
       _ticker?.start();
+
       _logger.i("Dart: Init sequence completely finished!");
     } catch (e, stack) {
-      _logger.e("Dart: Error initializing ProjectM", error: e, stackTrace: stack);
+      _logger.e("Dart: Error in _initProjectM", error: e, stackTrace: stack);
       if (mounted) {
         setState(() {
           _startupError = 'Error: $e';
@@ -198,9 +213,7 @@ class _VisualizerScreenState extends State<VisualizerScreen>
     setState(() {
       _isAutoDjEnabled = !_isAutoDjEnabled;
       if (_isAutoDjEnabled) {
-        _autoDjTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-          _loadNextPreset();
-        });
+        _startAutoDj();
       } else {
         _autoDjTimer?.cancel();
         _autoDjTimer = null;

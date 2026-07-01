@@ -5,6 +5,9 @@
 #include <fstream>
 #include <iostream>
 #include <cstdlib>
+#include <chrono>
+
+static uint64_t g_render_frame_count = 0;
 
 ProjectmFfiState* projectm_ffi_state_from_handle(void* handle) {
     return static_cast<ProjectmFfiState*>(handle);
@@ -79,17 +82,26 @@ FFI_PLUGIN_EXPORT void projectm_ffi_add_audio(void* handle, const float* data, i
     }
 }
 
+#include <sys/resource.h>
+
 FFI_PLUGIN_EXPORT void* projectm_ffi_init() {
     std::cout << "C++: projectm_ffi_init creating wrapper state" << std::endl;
-    // Limit llvmpipe (WSL software renderer) to 2 threads to prevent it from 
-    // starving the audio thread during heavy preset compilations!
-    setenv("LP_NUM_THREADS", "2", 0);
+    
+    // We rely on miniaudio's internal realtime thread priority for the audio thread.
+
+    // Limit llvmpipe (WSL software renderer) to 2 threads
+    // Must use 1 to force overwrite in case WSL sets it.
+    setenv("LP_NUM_THREADS", "2", 1);
+    setenv("GALLIUM_THREAD", "0", 1);
     return static_cast<void*>(new ProjectmFfiState());
 }
 
 extern "C" {
     int g_pm_fbo = 0;
 }
+
+
+
 
 FFI_PLUGIN_EXPORT void projectm_ffi_destroy(void* handle) {
     ProjectmFfiState* state = projectm_ffi_state_from_handle(handle);
@@ -178,6 +190,15 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
             std::cerr << "C++: projectm_create failed. OpenGL context is not ready or not supported." << std::endl;
             return;
         }
+        
+        // CRITICAL: Disable projectM's internal playlist auto-switch!
+        // By default, projectM automatically switches presets every 15 seconds.
+        // This triggers a shader compilation that spikes the CPU and kills our PulseAudio thread,
+        // causing a mysterious audio freeze exactly at the 16-second mark even when idle.
+        // Setting these to a massive number ensures presets only switch when Dart tells them to!
+        projectm_set_preset_duration(state->instance, 999999.0);
+        projectm_set_hard_cut_duration(state->instance, 999999.0);
+        
         std::cout << "C++: projectm_create finished, returning " << state->instance << std::endl;
     }
 
@@ -216,7 +237,15 @@ FFI_PLUGIN_EXPORT void projectm_ffi_render_frame(void* handle, uint32_t width, u
             std::cout << "C++: Pending preset loaded!" << std::endl;
         }
 
+        auto render_start = std::chrono::steady_clock::now();
         projectm_opengl_render_frame(state->instance);
+        auto render_end = std::chrono::steady_clock::now();
+        auto render_ms = std::chrono::duration_cast<std::chrono::milliseconds>(render_end - render_start).count();
+        g_render_frame_count++;
+        // Log every 100 frames (~3 seconds at 30fps)
+        if (g_render_frame_count % 100 == 0) {
+            std::cout << "RENDER_DIAG[" << g_render_frame_count << "]: render_ms=" << render_ms << std::endl;
+        }
         
 #if defined(__ANDROID__)
         g_eglMutex.lock();
